@@ -22,6 +22,16 @@ php artisan config:clear
 echo "Caching Laravel views..."
 php artisan view:cache
 
+if [ "${RUN_DEMO_SEED:-false}" = "true" ]; then
+    echo "Running five-year demo data seeder..."
+
+    php artisan db:seed \
+        --class="Database\\Seeders\\FiveYearDemoDataSeeder" \
+        --force
+
+    echo "Demo data seeding finished."
+fi
+
 echo "Starting Apache..."
 
 exec apache2-foreground
