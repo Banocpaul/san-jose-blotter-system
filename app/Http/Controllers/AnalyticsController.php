@@ -102,12 +102,32 @@ class AnalyticsController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | KPI Cards
+        | KPI + Status Distribution
         |--------------------------------------------------------------------------
+        |
+        | One grouped query now supplies:
+        | - total cases
+        | - open cases
+        | - closed cases
+        | - settled cases
+        | - status distribution
+        |
+        | This replaces many individual COUNT queries.
+        |
         */
 
+        $statusCounts =
+            (clone $query)
+                ->select('blotter_cases.status')
+                ->selectRaw('COUNT(*) AS total')
+                ->groupBy('blotter_cases.status')
+                ->pluck(
+                    'total',
+                    'blotter_cases.status'
+                );
+
         $totalCases =
-            (clone $query)->count();
+            (int) $statusCounts->sum();
 
         $openStatuses = [
             CaseStatus::Pending->value,
@@ -123,28 +143,31 @@ class AnalyticsController extends Controller
         ];
 
         $openCases =
-            (clone $query)
-                ->whereIn(
-                    'status',
-                    $openStatuses
-                )
-                ->count();
+            collect($openStatuses)
+                ->sum(
+                    fn (string $status) =>
+                        (int) (
+                            $statusCounts[$status]
+                            ?? 0
+                        )
+                );
 
         $closedCases =
-            (clone $query)
-                ->whereIn(
-                    'status',
-                    $closedStatuses
-                )
-                ->count();
+            collect($closedStatuses)
+                ->sum(
+                    fn (string $status) =>
+                        (int) (
+                            $statusCounts[$status]
+                            ?? 0
+                        )
+                );
 
         $settledCases =
-            (clone $query)
-                ->where(
-                    'status',
+            (int) (
+                $statusCounts[
                     CaseStatus::Settled->value
-                )
-                ->count();
+                ] ?? 0
+            );
 
         $settlementRate =
             $closedCases > 0
@@ -204,6 +227,10 @@ class AnalyticsController extends Controller
         |--------------------------------------------------------------------------
         | Status Distribution
         |--------------------------------------------------------------------------
+        |
+        | Reuse the grouped status query above instead of performing one COUNT
+        | query for every status.
+        |
         */
 
         $statusDistribution =
@@ -213,18 +240,17 @@ class AnalyticsController extends Controller
                 ->map(
                     function (
                         CaseStatus $status
-                    ) use ($query) {
+                    ) use ($statusCounts) {
                         return [
                             'label' =>
                                 $status->value,
 
                             'total' =>
-                                (clone $query)
-                                    ->where(
-                                        'status',
+                                (int) (
+                                    $statusCounts[
                                         $status->value
-                                    )
-                                    ->count(),
+                                    ] ?? 0
+                                ),
                         ];
                     }
                 )
@@ -261,9 +287,85 @@ class AnalyticsController extends Controller
 
         /*
         |--------------------------------------------------------------------------
+        | Reusable Filtered Case IDs
+        |--------------------------------------------------------------------------
+        |
+        | The remaining relationship-based analytics use this filtered ID
+        | subquery so that we can aggregate them in SQL rather than issuing one
+        | query per Sitio, Councilor, or mediation outcome.
+        |
+        */
+
+        $filteredCaseIds =
+            (clone $query)
+                ->select(
+                    'blotter_cases.id'
+                );
+
+        /*
+        |--------------------------------------------------------------------------
         | Cases By Sitio
         |--------------------------------------------------------------------------
+        |
+        | Combine complainant/respondent sitios, then count distinct matching
+        | cases in one grouped query.
+        |
         */
+
+        $partySitios =
+            DB::table(
+                'case_complainants'
+            )
+                ->select([
+                    'blotter_case_id',
+                    'sitio',
+                ])
+                ->whereNotNull(
+                    'sitio'
+                )
+                ->unionAll(
+                    DB::table(
+                        'case_respondents'
+                    )
+                        ->select([
+                            'blotter_case_id',
+                            'sitio',
+                        ])
+                        ->whereNotNull(
+                            'sitio'
+                        )
+                );
+
+        $sitioCounts =
+            DB::query()
+                ->fromSub(
+                    $partySitios,
+                    'party_sitios'
+                )
+                ->joinSub(
+                    clone $filteredCaseIds,
+                    'filtered_cases',
+                    'filtered_cases.id',
+                    '=',
+                    'party_sitios.blotter_case_id'
+                )
+                ->whereIn(
+                    'party_sitios.sitio',
+                    $sitios
+                )
+                ->select(
+                    'party_sitios.sitio'
+                )
+                ->selectRaw(
+                    'COUNT(DISTINCT party_sitios.blotter_case_id) AS total'
+                )
+                ->groupBy(
+                    'party_sitios.sitio'
+                )
+                ->pluck(
+                    'total',
+                    'party_sitios.sitio'
+                );
 
         $sitioDistribution =
             collect(
@@ -272,43 +374,17 @@ class AnalyticsController extends Controller
                 ->map(
                     function (
                         string $sitio
-                    ) use ($query) {
+                    ) use ($sitioCounts) {
                         return [
                             'label' =>
                                 $sitio,
 
                             'total' =>
-                                (clone $query)
-                                    ->where(
-                                        function (
-                                            Builder $builder
-                                        ) use ($sitio) {
-                                            $builder
-                                                ->whereHas(
-                                                    'complainants',
-                                                    function (
-                                                        Builder $party
-                                                    ) use ($sitio) {
-                                                        $party->where(
-                                                            'sitio',
-                                                            $sitio
-                                                        );
-                                                    }
-                                                )
-                                                ->orWhereHas(
-                                                    'respondents',
-                                                    function (
-                                                        Builder $party
-                                                    ) use ($sitio) {
-                                                        $party->where(
-                                                            'sitio',
-                                                            $sitio
-                                                        );
-                                                    }
-                                                );
-                                        }
-                                    )
-                                    ->count(),
+                                (int) (
+                                    $sitioCounts[
+                                        $sitio
+                                    ] ?? 0
+                                ),
                         ];
                     }
                 )
@@ -344,30 +420,58 @@ class AnalyticsController extends Controller
                 )
                 ->get();
 
+        $councilorIds =
+            $councilors
+                ->pluck('id')
+                ->all();
+
+        $councilorWorkloadCounts =
+            empty($councilorIds)
+                ? collect()
+                : DB::table(
+                    'case_assignments'
+                )
+                    ->joinSub(
+                        clone $filteredCaseIds,
+                        'filtered_cases',
+                        'filtered_cases.id',
+                        '=',
+                        'case_assignments.blotter_case_id'
+                    )
+                    ->whereIn(
+                        'case_assignments.assigned_to',
+                        $councilorIds
+                    )
+                    ->select(
+                        'case_assignments.assigned_to'
+                    )
+                    ->selectRaw(
+                        'COUNT(DISTINCT case_assignments.blotter_case_id) AS total'
+                    )
+                    ->groupBy(
+                        'case_assignments.assigned_to'
+                    )
+                    ->pluck(
+                        'total',
+                        'case_assignments.assigned_to'
+                    );
+
         $councilorWorkload =
             $councilors
                 ->map(
                     function (
                         User $councilor
-                    ) use ($query) {
+                    ) use ($councilorWorkloadCounts) {
                         return [
                             'label' =>
                                 $councilor->name,
 
                             'total' =>
-                                (clone $query)
-                                    ->whereHas(
-                                        'assignments',
-                                        function (
-                                            Builder $assignment
-                                        ) use ($councilor) {
-                                            $assignment->where(
-                                                'assigned_to',
-                                                $councilor->id
-                                            );
-                                        }
-                                    )
-                                    ->count(),
+                                (int) (
+                                    $councilorWorkloadCounts[
+                                        $councilor->id
+                                    ] ?? 0
+                                ),
                         ];
                     }
                 )
@@ -382,6 +486,41 @@ class AnalyticsController extends Controller
         |--------------------------------------------------------------------------
         */
 
+        $mediationOutcomeCounts =
+            DB::table(
+                'mediation_sessions'
+            )
+                ->join(
+                    'mediation_outcomes',
+                    'mediation_outcomes.mediation_session_id',
+                    '=',
+                    'mediation_sessions.id'
+                )
+                ->joinSub(
+                    clone $filteredCaseIds,
+                    'filtered_cases',
+                    'filtered_cases.id',
+                    '=',
+                    'mediation_sessions.blotter_case_id'
+                )
+                ->whereIn(
+                    'mediation_outcomes.outcome',
+                    $mediationOutcomes
+                )
+                ->select(
+                    'mediation_outcomes.outcome'
+                )
+                ->selectRaw(
+                    'COUNT(DISTINCT mediation_sessions.blotter_case_id) AS total'
+                )
+                ->groupBy(
+                    'mediation_outcomes.outcome'
+                )
+                ->pluck(
+                    'total',
+                    'mediation_outcomes.outcome'
+                );
+
         $mediationDistribution =
             collect(
                 $mediationOutcomes
@@ -389,25 +528,17 @@ class AnalyticsController extends Controller
                 ->map(
                     function (
                         string $outcome
-                    ) use ($query) {
+                    ) use ($mediationOutcomeCounts) {
                         return [
                             'label' =>
                                 $outcome,
 
                             'total' =>
-                                (clone $query)
-                                    ->whereHas(
-                                        'mediationSessions.outcome',
-                                        function (
-                                            Builder $outcomeQuery
-                                        ) use ($outcome) {
-                                            $outcomeQuery->where(
-                                                'outcome',
-                                                $outcome
-                                            );
-                                        }
-                                    )
-                                    ->count(),
+                                (int) (
+                                    $mediationOutcomeCounts[
+                                        $outcome
+                                    ] ?? 0
+                                ),
                         ];
                     }
                 )

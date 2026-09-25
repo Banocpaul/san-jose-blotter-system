@@ -72,50 +72,60 @@ class DashboardController extends Controller
                     )
                     ->count();
 
+            /*
+            |--------------------------------------------------------------------------
+            | Case Status Counts
+            |--------------------------------------------------------------------------
+            |
+            | Fetch every status total in one query instead of issuing a separate
+            | COUNT query for every dashboard card.
+            |
+            */
+
+            $statusCounts =
+                BlotterCase::query()
+                    ->select('status')
+                    ->selectRaw('COUNT(*) AS total')
+                    ->groupBy('status')
+                    ->pluck('total', 'status');
+
             $data['totalCases'] =
-                BlotterCase::count();
+                $statusCounts->sum();
 
             $data['pendingCases'] =
-                BlotterCase::where(
-                    'status',
+                $statusCounts[
                     CaseStatus::Pending->value
-                )->count();
+                ] ?? 0;
 
             $data['underInvestigationCases'] =
-                BlotterCase::where(
-                    'status',
+                $statusCounts[
                     CaseStatus::UnderInvestigation->value
-                )->count();
+                ] ?? 0;
 
             $data['forMediationCases'] =
-                BlotterCase::where(
-                    'status',
+                $statusCounts[
                     CaseStatus::ForMediation->value
-                )->count();
+                ] ?? 0;
 
             $data['settledCases'] =
-                BlotterCase::where(
-                    'status',
+                $statusCounts[
                     CaseStatus::Settled->value
-                )->count();
+                ] ?? 0;
 
             $data['resolvedCases'] =
-                BlotterCase::where(
-                    'status',
+                $statusCounts[
                     CaseStatus::Resolved->value
-                )->count();
+                ] ?? 0;
 
             $data['referredCases'] =
-                BlotterCase::where(
-                    'status',
+                $statusCounts[
                     CaseStatus::Referred->value
-                )->count();
+                ] ?? 0;
 
             $data['dismissedCases'] =
-                BlotterCase::where(
-                    'status',
+                $statusCounts[
                     CaseStatus::Dismissed->value
-                )->count();
+                ] ?? 0;
 
             $data['scheduledHearings'] =
                 MediationSession::where(
@@ -179,20 +189,25 @@ class DashboardController extends Controller
                     )
                     ->count();
 
+            $statusCounts =
+                BlotterCase::query()
+                    ->select('status')
+                    ->selectRaw('COUNT(*) AS total')
+                    ->groupBy('status')
+                    ->pluck('total', 'status');
+
             $data['totalCases'] =
-                BlotterCase::count();
+                $statusCounts->sum();
 
             $data['pendingCases'] =
-                BlotterCase::where(
-                    'status',
+                $statusCounts[
                     CaseStatus::Pending->value
-                )->count();
+                ] ?? 0;
 
             $data['underInvestigationCases'] =
-                BlotterCase::where(
-                    'status',
+                $statusCounts[
                     CaseStatus::UnderInvestigation->value
-                )->count();
+                ] ?? 0;
 
             $data['recentCases'] =
                 BlotterCase::with([
@@ -239,25 +254,25 @@ class DashboardController extends Controller
                     }
                 );
 
-            $data['assignedCases'] =
+            $assignedStatusCounts =
                 (clone $assignedQuery)
-                    ->count();
+                    ->select('status')
+                    ->selectRaw('COUNT(*) AS total')
+                    ->groupBy('status')
+                    ->pluck('total', 'status');
+
+            $data['assignedCases'] =
+                $assignedStatusCounts->sum();
 
             $data['underInvestigationCases'] =
-                (clone $assignedQuery)
-                    ->where(
-                        'status',
-                        CaseStatus::UnderInvestigation->value
-                    )
-                    ->count();
+                $assignedStatusCounts[
+                    CaseStatus::UnderInvestigation->value
+                ] ?? 0;
 
             $data['pendingCases'] =
-                (clone $assignedQuery)
-                    ->where(
-                        'status',
-                        CaseStatus::Pending->value
-                    )
-                    ->count();
+                $assignedStatusCounts[
+                    CaseStatus::Pending->value
+                ] ?? 0;
 
             $data['recentCases'] =
                 (clone $assignedQuery)
@@ -301,17 +316,20 @@ class DashboardController extends Controller
                     }
                 );
 
-            $data['assignedCases'] =
+            $mediationStatusCounts =
                 (clone $mediationCaseQuery)
-                    ->count();
+                    ->select('status')
+                    ->selectRaw('COUNT(*) AS total')
+                    ->groupBy('status')
+                    ->pluck('total', 'status');
+
+            $data['assignedCases'] =
+                $mediationStatusCounts->sum();
 
             $data['forMediationCases'] =
-                (clone $mediationCaseQuery)
-                    ->where(
-                        'status',
-                        CaseStatus::ForMediation->value
-                    )
-                    ->count();
+                $mediationStatusCounts[
+                    CaseStatus::ForMediation->value
+                ] ?? 0;
 
             $data['scheduledHearings'] =
                 MediationSession::where(
