@@ -9,6 +9,7 @@ class MediationSession extends Model
     protected $fillable = [
         'blotter_case_id',
         'hearing_number',
+        'proceeding_type',
         'scheduled_date',
         'scheduled_time',
         'venue',

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\CaseStage;
 use App\Enums\CaseStatus;
 use App\Models\BlotterCase;
 use App\Models\CaseAssignment;
@@ -209,6 +210,9 @@ class CaseWorkflowController extends Controller
                     'status' =>
                         CaseStatus::UnderInvestigation,
 
+                    'case_stage' =>
+                        CaseStage::UnderAssessment,
+
                     'closed_at' =>
                         null,
                 ]);
@@ -280,6 +284,10 @@ class CaseWorkflowController extends Controller
 
                         'case_status' =>
                             CaseStatus::UnderInvestigation
+                                ->value,
+
+                        'case_stage' =>
+                            CaseStage::UnderAssessment
                                 ->value,
                     ]
                 );

@@ -9,6 +9,14 @@
         ? $case->status->value
         : $case->status;
 
+    $caseStage = $case->case_stage instanceof \App\Enums\CaseStage
+        ? $case->case_stage->value
+        : ($case->case_stage ?? 'New');
+
+    $currentProceedingLabel = $caseStage === 'For Pangkat/Conciliation'
+        ? 'Pangkat Conciliation'
+        : 'Mediation';
+
     $statusClass = match($caseStatus) {
         'Pending' => 'text-bg-warning',
         'Under Investigation' => 'text-bg-primary',
@@ -101,42 +109,50 @@
             {{ $caseStatus }}
         </span>
 
+        <span class="badge text-bg-light border text-dark">
+            Stage: {{ $caseStage }}
+        </span>
+
     </div>
 
 
     <div class="d-flex gap-2">
 
         <a
-            href="{{ route('blotter.index') }}"
+            href="{{ request()->routeIs('blotter.show') && url()->previous() !== url()->current() ? url()->previous() : route('blotter.index') }}"
             class="btn btn-outline-secondary"
         >
             Back
         </a>
 
-        <a
-            href="{{ route('blotter.edit', $case) }}"
-            class="btn btn-primary"
-        >
-            Edit Case
-        </a>
-
-        <form
-            method="POST"
-            action="{{ route('blotter.destroy', $case) }}"
-            onsubmit="return confirm('Archive this blotter case?');"
-        >
-
-            @csrf
-            @method('DELETE')
-
-            <button
-                type="submit"
-                class="btn btn-outline-danger"
+        @can('update', $case)
+            <a
+                href="{{ route('blotter.edit', $case) }}"
+                class="btn btn-primary"
             >
-                Archive
-            </button>
+                Edit Case
+            </a>
+        @endcan
 
-        </form>
+        @can('delete', $case)
+            <form
+                method="POST"
+                action="{{ route('blotter.destroy', $case) }}"
+                onsubmit="return confirm('Archive this blotter case?');"
+            >
+
+                @csrf
+                @method('DELETE')
+
+                <button
+                    type="submit"
+                    class="btn btn-outline-danger"
+                >
+                    Archive
+                </button>
+
+            </form>
+        @endcan
 
     </div>
 
@@ -502,7 +518,7 @@
             <div class="card-header bg-white d-flex justify-content-between align-items-center">
 
                 <strong>
-                    Mediation Management
+                    Lupon & Mediation Management
                 </strong>
 
                 <span class="badge text-bg-secondary">
@@ -513,7 +529,7 @@
                             ->count()
                     }}
 
-                    Hearing(s)
+                    Proceeding(s)
 
                 </span>
 
@@ -583,11 +599,11 @@
                     <div class="alert alert-primary mt-3">
 
                         <strong>
-                            Case is For Mediation
+                            Case is {{ $caseStage }}
                         </strong>
 
                         <div class="small mt-1">
-                            The case remains active until a mediation outcome is recorded.
+                            The case remains active until the current proceeding outcome is recorded.
                         </div>
 
                     </div>
@@ -607,7 +623,7 @@
                     @else
 
                         <h6 class="mb-3">
-                            Schedule New Hearing
+                            Schedule {{ $currentProceedingLabel }} Hearing
                         </h6>
 
 
@@ -734,7 +750,7 @@
                                     <div class="col-12">
 
                                         <label class="form-label">
-                                            Initial Mediation Notes
+                                            Initial {{ $currentProceedingLabel }} Notes
                                         </label>
 
                                         <textarea
@@ -752,7 +768,7 @@
                                             type="submit"
                                             class="btn btn-primary"
                                         >
-                                            Schedule Hearing
+                                            Schedule {{ $currentProceedingLabel }} Hearing
                                         </button>
 
                                     </div>
@@ -782,7 +798,7 @@
 
 
                     <h5 class="mb-3">
-                        Mediation Hearing History
+                        Proceeding History
                     </h5>
 
 
@@ -831,7 +847,7 @@
 
                                     <h5 class="mb-1">
 
-                                        Hearing
+                                        {{ $session->proceeding_type ?: 'Mediation' }} Hearing
                                         #{{ $session->hearing_number }}
 
                                     </h5>
@@ -954,7 +970,7 @@
                                 <div class="mb-3">
 
                                     <div class="text-muted small">
-                                        Mediation Notes
+                                        Proceeding Notes
                                     </div>
 
                                     <div style="white-space: pre-line;">
@@ -1586,7 +1602,7 @@
                                 <div class="alert alert-light border">
 
                                     Update attendance first, then record the
-                                    official result of this mediation hearing.
+                                    official result of this proceeding.
 
                                 </div>
 
@@ -1598,7 +1614,7 @@
                                         $session
                                     ) }}"
                                     onsubmit="return confirm(
-                                        'Record this mediation outcome? This hearing will be closed.'
+                                        'Record this proceeding outcome? This hearing will be closed.'
                                     );"
                                 >
 
@@ -1676,6 +1692,14 @@
 
                                             </select>
 
+                                            <div class="form-text">
+                                                @if(($session->proceeding_type ?: 'Mediation') === 'Mediation')
+                                                    No Agreement automatically advances the case to For Pangkat/Conciliation.
+                                                @else
+                                                    No Agreement advances the case to For Further Action/CFA.
+                                                @endif
+                                            </div>
+
                                         </div>
 
 
@@ -1699,8 +1723,7 @@
 
                                             <div class="form-text">
 
-                                                Required for Referred
-                                                or No Agreement.
+                                                Required only when the outcome is Referred.
 
                                             </div>
 
@@ -1749,7 +1772,7 @@
                                                 type="submit"
                                                 class="btn btn-success"
                                             >
-                                                Record Mediation Outcome
+                                                Record Proceeding Outcome
                                             </button>
 
                                         </div>
@@ -2709,42 +2732,13 @@
 
                         <div class="mb-3">
 
-                            <label class="form-label">
-                                Select Registered Resident
-                            </label>
-
-                            <select
-                                name="resident_id"
-                                class="form-select"
-                            >
-
-                                <option value="">
-                                    Manual Entry / Not Registered
-                                </option>
-
-                                @foreach($residents as $resident)
-
-                                    <option
-                                        value="{{ $resident->id }}"
-                                        @selected(old('resident_id') == $resident->id)
-                                    >
-                                        {{ $resident->last_name }},
-                                        {{ $resident->first_name }}
-                                        {{ $resident->middle_name }}
-
-                                        @if($resident->resident_code)
-                                            — {{ $resident->resident_code }}
-                                        @endif
-                                    </option>
-
-                                @endforeach
-
-                            </select>
-
-                            <div class="form-text">
-                                Select a registered resident, or leave this blank
-                                and enter the witness manually below.
-                            </div>
+                            @include('blotter._person-picker', [
+                                'prefix' => 'witness',
+                                'label' => 'Witness from People Directory',
+                                'fieldName' => 'resident_id',
+                                'required' => false,
+                                'helpText' => 'Optional: search the People Directory. Leave this blank to enter witness details manually below.',
+                            ])
 
                         </div>
 

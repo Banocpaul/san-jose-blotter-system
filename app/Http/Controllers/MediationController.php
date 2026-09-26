@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\CaseStage;
 use App\Enums\CaseStatus;
 use App\Models\BlotterCase;
 use App\Models\CaseAssignment;
+use App\Models\CaseResolution;
 use App\Models\MediationAttendee;
 use App\Models\MediationOutcome;
 use App\Models\MediationSession;
@@ -83,6 +85,11 @@ class MediationController extends Controller
                         ? $lockedCase->status->value
                         : $lockedCase->status;
 
+                $previousStage =
+                    $lockedCase->case_stage instanceof CaseStage
+                        ? $lockedCase->case_stage->value
+                        : $lockedCase->case_stage;
+
                 /*
                  * Close any current Councilor assignment.
                  */
@@ -107,6 +114,9 @@ class MediationController extends Controller
                 $lockedCase->update([
                     'status' =>
                         CaseStatus::ForMediation,
+
+                    'case_stage' =>
+                        CaseStage::ForMediation,
 
                     'closed_at' =>
                         null,
@@ -136,11 +146,17 @@ class MediationController extends Controller
                     oldValues: [
                         'status' =>
                             $previousStatus,
+
+                        'case_stage' =>
+                            $previousStage,
                     ],
 
                     newValues: [
                         'status' =>
                             CaseStatus::ForMediation->value,
+
+                        'case_stage' =>
+                            CaseStage::ForMediation->value,
 
                         'closed_at' =>
                             null,
@@ -307,8 +323,20 @@ class MediationController extends Controller
                         )
                     ?? 0;
 
+                $lockedStage =
+                    $lockedCase->case_stage instanceof CaseStage
+                        ? $lockedCase->case_stage
+                        : CaseStage::tryFrom(
+                            (string) $lockedCase->case_stage
+                        );
+
+                $proceedingType =
+                    $lockedStage === CaseStage::ForPangkatConciliation
+                        ? 'Pangkat Conciliation'
+                        : 'Mediation';
+
                 /*
-                 * Create hearing.
+                 * Create hearing / proceeding.
                  */
                 $session =
                     MediationSession::create([
@@ -317,6 +345,9 @@ class MediationController extends Controller
 
                         'hearing_number' =>
                             $lastHearingNumber + 1,
+
+                        'proceeding_type' =>
+                            $proceedingType,
 
                         'scheduled_date' =>
                             $data['scheduled_date'],
@@ -480,13 +511,13 @@ class MediationController extends Controller
 
                 AuditLogService::log(
                     action:
-                        'mediation_hearing_scheduled',
+                        'proceeding_scheduled',
 
                     module:
-                        'Blotter Cases',
+                        'Lupon & Mediation',
 
                     description:
-                        "Mediation hearing #{$session->hearing_number} was scheduled for case {$lockedCase->reference_number}.",
+                        "{$session->proceeding_type} hearing #{$session->hearing_number} was scheduled for case {$lockedCase->reference_number}.",
 
                     auditable:
                         $session,
@@ -503,6 +534,9 @@ class MediationController extends Controller
 
                         'hearing_number' =>
                             $session->hearing_number,
+
+                        'proceeding_type' =>
+                            $session->proceeding_type,
 
                         'scheduled_date' =>
                             $session->scheduled_date,
@@ -533,7 +567,8 @@ class MediationController extends Controller
 
         return back()->with(
             'success',
-            'Hearing #'
+            $session->proceeding_type
+            . ' hearing #'
             . $session->hearing_number
             . ' scheduled successfully.'
         );
@@ -1027,16 +1062,8 @@ class MediationController extends Controller
         }
 
         if (
-            in_array(
-                $data['outcome'],
-                [
-                    'Referred',
-                    'No Agreement',
-                ],
-                true
-            )
-            &&
-            blank(
+            $data['outcome'] === 'Referred'
+            && blank(
                 $data[
                     'referral_agency'
                 ] ?? null
@@ -1046,7 +1073,7 @@ class MediationController extends Controller
                 ->withInput()
                 ->withErrors([
                     'referral_agency' =>
-                        'Referral agency is required for a Referred or No Agreement outcome.',
+                        'Referral agency is required when the outcome is Referred.',
                 ]);
         }
 
@@ -1094,6 +1121,11 @@ class MediationController extends Controller
                     $case->status instanceof CaseStatus
                         ? $case->status->value
                         : $case->status;
+
+                $oldCaseStage =
+                    $case->case_stage instanceof CaseStage
+                        ? $case->case_stage->value
+                        : $case->case_stage;
 
                 $oldSessionStatus =
                     $lockedSession->status;
@@ -1155,9 +1187,44 @@ class MediationController extends Controller
                         'status' =>
                             CaseStatus::Settled,
 
+                        'case_stage' =>
+                            CaseStage::SettledResolved,
+
                         'closed_at' =>
                             now(),
                     ]);
+
+                    /*
+                     * Create the linked Settlement & Resolution record once.
+                     * The proceeding decides that the parties settled; the
+                     * settlement module handles document finalization and the
+                     * final Resolved state without duplicating case data.
+                     */
+                    CaseResolution::updateOrCreate(
+                        [
+                            'blotter_case_id' =>
+                                $case->id,
+                        ],
+                        [
+                            'mediation_outcome_id' =>
+                                $outcome->id,
+
+                            'resolution_type' =>
+                                ($lockedSession->proceeding_type
+                                    === 'Pangkat Conciliation')
+                                    ? 'Pangkat Settlement'
+                                    : 'Amicable Settlement',
+
+                            'status' =>
+                                'Pending',
+
+                            'agreement_details' =>
+                                $outcome->agreement_details,
+
+                            'remarks' =>
+                                $outcome->remarks,
+                        ]
+                    );
                 } elseif (
                     $data['outcome']
                     === 'Referred'
@@ -1174,6 +1241,9 @@ class MediationController extends Controller
                         'status' =>
                             CaseStatus::Referred,
 
+                        'case_stage' =>
+                            CaseStage::ForFurtherActionCfa,
+
                         'closed_at' =>
                             now(),
                     ]);
@@ -1189,13 +1259,44 @@ class MediationController extends Controller
                             now(),
                     ]);
 
-                    $case->update([
-                        'status' =>
-                            CaseStatus::Referred,
+                    $proceedingType =
+                        $lockedSession->proceeding_type
+                        ?: 'Mediation';
 
-                        'closed_at' =>
-                            now(),
-                    ]);
+                    if (
+                        $proceedingType
+                        === 'Pangkat Conciliation'
+                    ) {
+                        /*
+                         * Pangkat conciliation ended without agreement:
+                         * move the case to the next/further action stage.
+                         */
+                        $case->update([
+                            'status' =>
+                                CaseStatus::Referred,
+
+                            'case_stage' =>
+                                CaseStage::ForFurtherActionCfa,
+
+                            'closed_at' =>
+                                now(),
+                        ]);
+                    } else {
+                        /*
+                         * Mediation ended without agreement:
+                         * automatically advance to Pangkat/Conciliation.
+                         */
+                        $case->update([
+                            'status' =>
+                                CaseStatus::ForMediation,
+
+                            'case_stage' =>
+                                CaseStage::ForPangkatConciliation,
+
+                            'closed_at' =>
+                                null,
+                        ]);
+                    }
                 } elseif (
                     $data['outcome']
                     === 'Dismissed'
@@ -1212,6 +1313,9 @@ class MediationController extends Controller
                         'status' =>
                             CaseStatus::Dismissed,
 
+                        'case_stage' =>
+                            CaseStage::Closed,
+
                         'closed_at' =>
                             now(),
                     ]);
@@ -1227,9 +1331,18 @@ class MediationController extends Controller
                             now(),
                     ]);
 
+                    $proceedingType =
+                        $lockedSession->proceeding_type
+                        ?: 'Mediation';
+
                     $case->update([
                         'status' =>
                             CaseStatus::ForMediation,
+
+                        'case_stage' =>
+                            $proceedingType === 'Pangkat Conciliation'
+                                ? CaseStage::ForPangkatConciliation
+                                : CaseStage::ForMediation,
 
                         'closed_at' =>
                             null,
@@ -1244,6 +1357,11 @@ class MediationController extends Controller
                         ? $case->status->value
                         : $case->status;
 
+                $newCaseStage =
+                    $case->case_stage instanceof CaseStage
+                        ? $case->case_stage->value
+                        : $case->case_stage;
+
                 /*
                 |--------------------------------------------------------------------------
                 | Audit Trail
@@ -1255,10 +1373,11 @@ class MediationController extends Controller
                         'mediation_outcome_recorded',
 
                     module:
-                        'Blotter Cases',
+                        'Lupon & Mediation',
 
                     description:
-                        'Mediation outcome '
+                        ($lockedSession->proceeding_type ?: 'Mediation')
+                        . ' outcome '
                         . $data['outcome']
                         . ' was recorded for hearing #'
                         . $lockedSession->hearing_number
@@ -1272,6 +1391,9 @@ class MediationController extends Controller
                     oldValues: [
                         'case_status' =>
                             $oldCaseStatus,
+
+                        'case_stage' =>
+                            $oldCaseStage,
 
                         'session_status' =>
                             $oldSessionStatus,
@@ -1289,6 +1411,10 @@ class MediationController extends Controller
 
                         'hearing_number' =>
                             $lockedSession->hearing_number,
+
+                        'proceeding_type' =>
+                            $lockedSession->proceeding_type
+                            ?: 'Mediation',
 
                         'outcome_id' =>
                             $outcome->id,
@@ -1310,6 +1436,9 @@ class MediationController extends Controller
 
                         'case_status' =>
                             $newCaseStatus,
+
+                        'case_stage' =>
+                            $newCaseStage,
 
                         'completed_at' =>
                             $lockedSession->completed_at,

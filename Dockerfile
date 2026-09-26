@@ -7,7 +7,7 @@ WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm install
+RUN npm install --no-audit --no-fund
 
 COPY vite.config.js ./
 COPY resources ./resources
@@ -48,7 +48,8 @@ RUN apt-get update && apt-get install -y \
         gd \
         intl \
         bcmath \
-    && a2enmod rewrite headers \
+        opcache \
+    && a2enmod rewrite headers deflate expires \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
@@ -62,7 +63,8 @@ RUN composer install \
     --prefer-dist \
     --no-interaction \
     --no-progress \
-    --optimize-autoloader
+    --optimize-autoloader \
+    --classmap-authoritative
 
 RUN sed -ri \
     's!/var/www/html!/var/www/html/public!g' \
@@ -76,6 +78,11 @@ RUN printf '%s\n' \
     '</Directory>' \
     > /etc/apache2/conf-available/laravel.conf \
     && a2enconf laravel
+
+COPY docker/php-production.ini /usr/local/etc/php/conf.d/zz-production-performance.ini
+COPY docker/apache-performance.conf /etc/apache2/conf-available/performance.conf
+
+RUN a2enconf performance
 
 RUN chown -R www-data:www-data \
         /var/www/html/storage \

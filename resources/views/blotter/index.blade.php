@@ -1,20 +1,20 @@
 @extends('layouts.app')
 
-@section('title', 'Blotter Cases')
+@section('title', 'Blotter Records')
 
 @section('content')
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h3 class="mb-1">Blotter Cases</h3>
+        <h3 class="mb-1">Blotter Records</h3>
         <div class="text-muted">
-            Barangay San Jose Blotter Records
+            Initial complaint and incident records linked to the People Directory.
         </div>
     </div>
 
     <a href="{{ route('blotter.create') }}"
        class="btn btn-primary">
-        + New Blotter Case
+        <i class="bi bi-file-earmark-plus me-1"></i> New Blotter Case
     </a>
 </div>
 
@@ -233,7 +233,7 @@
                             colspan="7"
                             class="text-center text-muted py-5"
                         >
-                            No blotter cases found.
+                            No blotter records found.
                         </td>
                     </tr>
 

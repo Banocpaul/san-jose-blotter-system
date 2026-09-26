@@ -99,7 +99,7 @@
             <div class="card-body">
 
                 <div class="text-muted">
-                    Complainant Records
+                    People Directory
                 </div>
 
                 <h2 class="mb-0">
@@ -256,7 +256,7 @@
             <div class="card-body">
 
                 <div class="text-muted">
-                    Complainant Records
+                    People Directory
                 </div>
 
                 <h2 class="mb-0">

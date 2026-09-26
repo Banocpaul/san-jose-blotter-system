@@ -14,3 +14,4 @@ tests
 .phpunit.result.cache
 .vscode
 .idea
+bootstrap/cache/*.php

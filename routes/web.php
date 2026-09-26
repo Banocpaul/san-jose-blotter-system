@@ -2,10 +2,15 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BlotterCaseController;
+use App\Http\Controllers\CaseManagementController;
 use App\Http\Controllers\CaseWorkflowController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MediationController;
+use App\Http\Controllers\LuponMediationController;
+use App\Http\Controllers\HearingScheduleController;
+use App\Http\Controllers\SettlementResolutionController;
 use App\Http\Controllers\ResidentController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WitnessController;
 use App\Http\Controllers\AuditLogController;
@@ -19,9 +24,7 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 
-Route::get('/', function () {
-    return redirect()->route('login');
-});
+Route::redirect('/', '/login');
 
 
 /*
@@ -91,7 +94,45 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Complainant Records - View / Create / Edit
+    | Reports & Export
+    |--------------------------------------------------------------------------
+    |
+    | Barangay Captain and Secretary may generate operational case reports,
+    | print filtered results, and export the same filtered data to Excel.
+    |
+    */
+
+    Route::middleware(
+        'role:barangay_captain,secretary'
+    )->group(function () {
+
+        Route::get(
+            '/reports',
+            [ReportController::class, 'index']
+        )->name(
+            'reports.index'
+        );
+
+        Route::get(
+            '/reports/print',
+            [ReportController::class, 'print']
+        )->name(
+            'reports.print'
+        );
+
+        Route::get(
+            '/reports/export',
+            [ReportController::class, 'export']
+        )->name(
+            'reports.export'
+        );
+
+    });
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | People Directory - View / Create / Edit
     |--------------------------------------------------------------------------
     |
     | Barangay Captain
@@ -107,7 +148,7 @@ Route::middleware('auth')->group(function () {
 
         /*
         |--------------------------------------------------------------------------
-        | Complainant Directory
+        | People Directory
         |--------------------------------------------------------------------------
         */
 
@@ -121,7 +162,25 @@ Route::middleware('auth')->group(function () {
 
         /*
         |--------------------------------------------------------------------------
-        | Add Complainant Record
+        | Fast People Directory Search
+        |--------------------------------------------------------------------------
+        |
+        | Used by searchable person selectors. The endpoint returns a small
+        | result set instead of loading the full People Directory into a form.
+        |
+        */
+
+        Route::get(
+            '/residents/search',
+            [ResidentController::class, 'search']
+        )->name(
+            'residents.search'
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Add Person Record
         |--------------------------------------------------------------------------
         |
         | IMPORTANT:
@@ -140,7 +199,7 @@ Route::middleware('auth')->group(function () {
 
         /*
         |--------------------------------------------------------------------------
-        | Save Complainant Record
+        | Save Person Record
         |--------------------------------------------------------------------------
         */
 
@@ -154,7 +213,7 @@ Route::middleware('auth')->group(function () {
 
         /*
         |--------------------------------------------------------------------------
-        | View Complainant Record
+        | View Person Record
         |--------------------------------------------------------------------------
         */
 
@@ -168,7 +227,7 @@ Route::middleware('auth')->group(function () {
 
         /*
         |--------------------------------------------------------------------------
-        | Edit Complainant Record
+        | Edit Person Record
         |--------------------------------------------------------------------------
         */
 
@@ -182,7 +241,7 @@ Route::middleware('auth')->group(function () {
 
         /*
         |--------------------------------------------------------------------------
-        | Update Complainant Record
+        | Update Person Record
         |--------------------------------------------------------------------------
         */
 
@@ -199,7 +258,7 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Complainant Records - Archive / Restore
+    | People Directory - Archive / Restore
     |--------------------------------------------------------------------------
     |
     | Barangay Captain
@@ -228,6 +287,109 @@ Route::middleware('auth')->group(function () {
         );
 
     });
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Case Management - Central Tracking
+    |--------------------------------------------------------------------------
+    |
+    | Uses the same record-level visibility rules as the blotter module.
+    | KPI counts and case listings are scoped to the current user's access.
+    |
+    */
+
+    Route::get(
+        '/case-management',
+        [CaseManagementController::class, 'index']
+    )
+        ->middleware(
+            'role:barangay_captain,secretary,staff,councilor,lupon'
+        )
+        ->name(
+            'cases.index'
+        );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Lupon & Mediation - Proceeding Management
+    |--------------------------------------------------------------------------
+    |
+    | Captain and Secretary see all active proceedings.
+    | Lupon members see only cases assigned to them.
+    |
+    */
+
+    Route::get(
+        '/lupon-mediation',
+        [LuponMediationController::class, 'index']
+    )
+        ->middleware(
+            'role:barangay_captain,secretary,lupon'
+        )
+        ->name(
+            'lupon.index'
+        );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Hearing Schedules
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        '/hearing-schedules',
+        [HearingScheduleController::class, 'index']
+    )
+        ->middleware(
+            'role:barangay_captain,secretary,lupon'
+        )
+        ->name(
+            'hearings.index'
+        );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Settlement & Resolutions
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        '/settlement-resolutions',
+        [SettlementResolutionController::class, 'index']
+    )
+        ->middleware(
+            'role:barangay_captain,secretary,lupon'
+        )
+        ->name(
+            'settlements.index'
+        );
+
+    Route::patch(
+        '/settlement-resolutions/{resolution}/finalize',
+        [SettlementResolutionController::class, 'finalize']
+    )
+        ->middleware(
+            'role:barangay_captain,secretary'
+        )
+        ->name(
+            'settlements.finalize'
+        );
+
+    Route::patch(
+        '/settlement-resolutions/{resolution}/resolve',
+        [SettlementResolutionController::class, 'resolve']
+    )
+        ->middleware(
+            'role:barangay_captain,secretary'
+        )
+        ->name(
+            'settlements.resolve'
+        );
+
 
 
     /*
@@ -737,6 +899,23 @@ Route::middleware('auth')->group(function () {
                 ]
             )->name(
                 'audit.export'
+            );
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Print Audit Logs
+            |--------------------------------------------------------------------------
+            */
+
+            Route::get(
+                '/audit-trail/print',
+                [
+                    AuditLogController::class,
+                    'print'
+                ]
+            )->name(
+                'audit.print'
             );
 
         });

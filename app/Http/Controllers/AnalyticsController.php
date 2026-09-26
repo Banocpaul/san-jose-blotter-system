@@ -653,7 +653,7 @@ class AnalyticsController extends Controller
                 $filters['date_from']
             )
         ) {
-            $query->whereDate(
+            $query->where(
                 'incident_date',
                 '>=',
                 $filters['date_from']
@@ -665,7 +665,7 @@ class AnalyticsController extends Controller
                 $filters['date_to']
             )
         ) {
-            $query->whereDate(
+            $query->where(
                 'incident_date',
                 '<=',
                 $filters['date_to']

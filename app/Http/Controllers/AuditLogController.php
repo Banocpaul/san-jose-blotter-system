@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -497,11 +498,44 @@ class AuditLogController extends Controller
 
     /*
     |--------------------------------------------------------------------------
+    | Print Filtered Audit Logs
+    |--------------------------------------------------------------------------
+    |
+    | Uses the same filter query as the table and Excel export so the printed
+    | output always matches the user's current filter selection.
+    |
+    */
+
+    public function print(Request $request)
+    {
+        $logs = $this
+            ->filteredQuery($request)
+            ->latest('created_at')
+            ->get();
+
+        return view('admin.audit.print', [
+            'logs' => $logs,
+            'generatedAt' => now(),
+            'filters' => [
+                'Search' => $request->input('search') ?: 'Any',
+                'User' => $request->filled('user_id')
+                    ? User::find($request->user_id)?->name ?? 'Unknown User'
+                    : 'All Users',
+                'Action' => $request->input('action') ?: 'All Actions',
+                'Module' => $request->input('module') ?: 'All Modules',
+                'Date From' => $request->input('date_from') ?: 'Any Date',
+                'Date To' => $request->input('date_to') ?: 'Any Date',
+            ],
+        ]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
     | Shared Audit Filter Query
     |--------------------------------------------------------------------------
     |
     | IMPORTANT:
-    | Both index() and export() call this method. Any future filter added
+    | index(), export(), and print() call this method. Any future filter added
     | here automatically applies to both the browser table and Excel export.
     |
     */
@@ -613,10 +647,10 @@ class AuditLogController extends Controller
         */
 
         if ($request->filled('date_from')) {
-            $query->whereDate(
+            $query->where(
                 'created_at',
                 '>=',
-                $request->date_from
+                Carbon::parse($request->date_from)->startOfDay()
             );
         }
 
@@ -627,10 +661,10 @@ class AuditLogController extends Controller
         */
 
         if ($request->filled('date_to')) {
-            $query->whereDate(
+            $query->where(
                 'created_at',
-                '<=',
-                $request->date_to
+                '<',
+                Carbon::parse($request->date_to)->addDay()->startOfDay()
             );
         }
 

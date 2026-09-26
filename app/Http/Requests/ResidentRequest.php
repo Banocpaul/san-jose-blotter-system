@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class ResidentRequest extends FormRequest
 {
@@ -40,7 +41,7 @@ class ResidentRequest extends FormRequest
 
             'sex' => [
                 'nullable',
-                'in:Male,Female',
+                Rule::in(['Male', 'Female']),
             ],
 
             'birth_date' => [
@@ -53,6 +54,11 @@ class ResidentRequest extends FormRequest
                 'nullable',
                 'string',
                 'max:50',
+            ],
+
+            'classification' => [
+                'required',
+                Rule::in(['Resident', 'Non-Resident']),
             ],
 
             'contact_number' => [
@@ -94,12 +100,6 @@ class ResidentRequest extends FormRequest
             'is_registered_voter' => [
                 'nullable',
                 'boolean',
-            ],
-
-            'classification' => [
-                'nullable',
-                'string',
-                'max:100',
             ],
 
             'vulnerable_sector' => [

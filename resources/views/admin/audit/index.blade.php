@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Audit Trail')
+@section('title', 'Audit Logs')
 
 @section('content')
 
@@ -8,7 +8,7 @@
 
     <div>
         <h3 class="mb-1">
-            Audit Trail
+            Audit Logs
         </h3>
 
         <div class="text-muted">
@@ -223,12 +223,27 @@
                     <a
                         href="{{
                             route(
+                                'admin.audit.print',
+                                request()->except('page')
+                            )
+                        }}"
+                        target="_blank"
+                        class="btn btn-outline-dark ms-md-auto"
+                    >
+                        <i class="bi bi-printer me-1"></i>
+                        Print
+                    </a>
+
+                    <a
+                        href="{{
+                            route(
                                 'admin.audit.export',
                                 request()->except('page')
                             )
                         }}"
-                        class="btn btn-success ms-md-auto"
+                        class="btn btn-success"
                     >
+                        <i class="bi bi-file-earmark-excel me-1"></i>
                         Export Excel
                     </a>
 

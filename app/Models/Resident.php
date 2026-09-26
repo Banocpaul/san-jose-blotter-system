@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -44,6 +45,46 @@ class Resident extends Model
         ];
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Query Scopes
+    |--------------------------------------------------------------------------
+    |
+    | Keep frequently reused person-directory filters in one place. This keeps
+    | controllers smaller and avoids slightly different search logic across
+    | modules that reuse the People Directory.
+    |
+    */
+
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where('is_active', true);
+    }
+
+    public function scopeSearch(Builder $query, string $term): Builder
+    {
+        $term = trim($term);
+
+        if ($term === '') {
+            return $query;
+        }
+
+        return $query->where(function (Builder $searchQuery) use ($term) {
+            $like = "%{$term}%";
+            $codePrefix = "{$term}%";
+
+            $searchQuery
+                ->where('resident_code', 'like', $codePrefix)
+                ->orWhere('first_name', 'like', $like)
+                ->orWhere('middle_name', 'like', $like)
+                ->orWhere('last_name', 'like', $like)
+                ->orWhere('contact_number', 'like', $like)
+                ->orWhere('street', 'like', $like)
+                ->orWhere('purok', 'like', $like)
+                ->orWhere('address_details', 'like', $like);
+        });
+    }
+
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -66,11 +107,11 @@ class Resident extends Model
 
     public function getFullNameAttribute(): string
     {
-        return trim(
-            $this->first_name . ' ' .
-            ($this->middle_name ?? '') . ' ' .
-            $this->last_name . ' ' .
-            ($this->suffix ?? '')
-        );
+        return collect([
+            $this->first_name,
+            $this->middle_name,
+            $this->last_name,
+            $this->suffix,
+        ])->filter()->join(' ');
     }
 }

@@ -2,14 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\CaseStage;
 use App\Enums\CaseStatus;
 use App\Http\Requests\BlotterCaseRequest;
 use App\Models\BlotterCase;
 use App\Models\IncidentType;
-use App\Models\Resident;
 use App\Models\User;
 use App\Services\AuditLogService;
-use App\Services\ResidentReferenceService;
+use App\Services\CasePartyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -30,117 +30,24 @@ class BlotterCaseController extends Controller
 
         $user = auth()->user();
 
-        $role = $user->role?->slug;
-
-        $query = BlotterCase::with([
-            'incidentType',
-            'complainants',
-            'respondents',
-            'currentAssignment.assignedOfficer',
-        ]);
-
-        /*
-        |--------------------------------------------------------------------------
-        | Role-Based Record Filtering
-        |--------------------------------------------------------------------------
-        */
-
-        if ($role === 'councilor') {
-            $query->whereHas(
-                'assignments',
-                function ($assignment) use ($user) {
-                    $assignment
-                        ->where(
-                            'assigned_to',
-                            $user->id
-                        )
-                        ->whereNull(
-                            'completed_at'
-                        );
-                }
+        $query = BlotterCase::query()
+            ->visibleTo($user)
+            ->select([
+                'blotter_cases.id',
+                'blotter_cases.reference_number',
+                'blotter_cases.incident_type_id',
+                'blotter_cases.incident_date',
+                'blotter_cases.status',
+                'blotter_cases.reported_at',
+            ])
+            ->with([
+                'incidentType:id,name',
+                'complainants:id,blotter_case_id,first_name,middle_name,last_name,suffix',
+                'respondents:id,blotter_case_id,first_name,middle_name,last_name,suffix',
+            ])
+            ->searchCase(
+                $request->string('search')->toString()
             );
-        }
-
-        if ($role === 'lupon') {
-            $query->whereHas(
-                'mediationSessions',
-                function ($session) use ($user) {
-                    $session->where(
-                        'lupon_member_id',
-                        $user->id
-                    );
-                }
-            );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Search
-        |--------------------------------------------------------------------------
-        */
-
-        if ($request->filled('search')) {
-            $search = trim(
-                $request->search
-            );
-
-            $query->where(
-                function ($q) use ($search) {
-                    $q->where(
-                        'reference_number',
-                        'like',
-                        "%{$search}%"
-                    )
-                        ->orWhere(
-                            'location',
-                            'like',
-                            "%{$search}%"
-                        )
-                        ->orWhereHas(
-                            'complainants',
-                            function ($person) use ($search) {
-                                $person
-                                    ->where(
-                                        'first_name',
-                                        'like',
-                                        "%{$search}%"
-                                    )
-                                    ->orWhere(
-                                        'middle_name',
-                                        'like',
-                                        "%{$search}%"
-                                    )
-                                    ->orWhere(
-                                        'last_name',
-                                        'like',
-                                        "%{$search}%"
-                                    );
-                            }
-                        )
-                        ->orWhereHas(
-                            'respondents',
-                            function ($person) use ($search) {
-                                $person
-                                    ->where(
-                                        'first_name',
-                                        'like',
-                                        "%{$search}%"
-                                    )
-                                    ->orWhere(
-                                        'middle_name',
-                                        'like',
-                                        "%{$search}%"
-                                    )
-                                    ->orWhere(
-                                        'last_name',
-                                        'like',
-                                        "%{$search}%"
-                                    );
-                            }
-                        );
-                }
-            );
-        }
 
         /*
         |--------------------------------------------------------------------------
@@ -184,7 +91,7 @@ class BlotterCaseController extends Controller
             true
         )
             ->orderBy('name')
-            ->get();
+            ->get(['id', 'name']);
 
         $statuses = CaseStatus::cases();
 
@@ -216,25 +123,11 @@ class BlotterCaseController extends Controller
             true
         )
             ->orderBy('name')
-            ->get();
-
-        $residents = Resident::where(
-            'is_active',
-            true
-        )
-            ->whereHas(
-                'complaints'
-            )
-            ->orderBy('last_name')
-            ->orderBy('first_name')
-            ->get();
+            ->get(['id', 'name']);
 
         return view(
             'blotter.create',
-            compact(
-                'incidentTypes',
-                'residents'
-            )
+            compact('incidentTypes')
         );
     }
 
@@ -245,7 +138,8 @@ class BlotterCaseController extends Controller
     */
 
     public function store(
-        BlotterCaseRequest $request
+        BlotterCaseRequest $request,
+        CasePartyService $casePartyService
     ) {
         $this->authorize(
             'create',
@@ -253,7 +147,7 @@ class BlotterCaseController extends Controller
         );
 
         $case = DB::transaction(
-            function () use ($request) {
+            function () use ($request, $casePartyService) {
                 $data = $request->validated();
 
                 /*
@@ -287,6 +181,9 @@ class BlotterCaseController extends Controller
                     'status' =>
                         CaseStatus::Pending,
 
+                    'case_stage' =>
+                        CaseStage::New,
+
                     'created_by' =>
                         auth()->id(),
 
@@ -296,24 +193,18 @@ class BlotterCaseController extends Controller
 
                 /*
                 |--------------------------------------------------------------------------
-                | Complainant
+                | Parties From People Directory
                 |--------------------------------------------------------------------------
+                |
+                | Both people are loaded in one query and copied into immutable
+                | case-party snapshots. No duplicate person record is created here.
+                |
                 */
 
-                $this->createComplainant(
+                $casePartyService->attachFromDirectory(
                     $case,
-                    $data
-                );
-
-                /*
-                |--------------------------------------------------------------------------
-                | Respondent
-                |--------------------------------------------------------------------------
-                */
-
-                $this->createRespondent(
-                    $case,
-                    $data
+                    (int) $data['complainant_resident_id'],
+                    (int) $data['respondent_resident_id']
                 );
 
                 /*
@@ -443,26 +334,6 @@ class BlotterCaseController extends Controller
             ->orderBy('name')
             ->get();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Active Residents
-        |--------------------------------------------------------------------------
-        |
-        | Used by the Add Witness form.
-        |
-        */
-
-        $residents = Resident::where(
-            'is_active',
-            true
-        )
-            ->whereHas(
-                'complaints'
-            )
-            ->orderBy('last_name')
-            ->orderBy('first_name')
-            ->get();
-
         return view(
             'blotter.show',
             [
@@ -475,8 +346,6 @@ class BlotterCaseController extends Controller
                 'luponMembers' =>
                     $luponMembers,
 
-                'residents' =>
-                    $residents,
             ]
         );
     }
@@ -500,7 +369,7 @@ class BlotterCaseController extends Controller
             true
         )
             ->orderBy('name')
-            ->get();
+            ->get(['id', 'name']);
 
         $statuses = CaseStatus::cases();
 
@@ -580,6 +449,11 @@ class BlotterCaseController extends Controller
             )
             : null;
 
+        $newCaseStage = CaseStage::fromStatus(
+            $newStatus,
+            $blotter->case_stage
+        );
+
         /*
         |--------------------------------------------------------------------------
         | Update Case + Audit Trail
@@ -591,6 +465,7 @@ class BlotterCaseController extends Controller
                 $blotter,
                 $data,
                 $newStatus,
+                $newCaseStage,
                 $closedAt
             ) {
                 $oldValues =
@@ -622,6 +497,9 @@ class BlotterCaseController extends Controller
 
                     'status' =>
                         $newStatus,
+
+                    'case_stage' =>
+                        $newCaseStage,
 
                     'closed_at' =>
                         $closedAt,
@@ -708,578 +586,6 @@ class BlotterCaseController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | Create Complainant
-    |--------------------------------------------------------------------------
-    */
-
-    private function createComplainant(
-        BlotterCase $case,
-        array $data
-    ): void {
-        $resident = null;
-
-        /*
-        |--------------------------------------------------------------------------
-        | Existing Complainant Record
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            ! empty(
-                $data[
-                    'complainant_resident_id'
-                ]
-            )
-        ) {
-            $resident = Resident::where(
-                'is_active',
-                true
-            )
-                ->whereHas(
-                    'complaints'
-                )
-                ->findOrFail(
-                    $data[
-                        'complainant_resident_id'
-                    ]
-                );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | New Complainant Information
-        |--------------------------------------------------------------------------
-        */
-
-        if (! $resident) {
-            $isSanJoseResident = ! (
-                $data[
-                    'complainant_not_san_jose'
-                ]
-                ?? false
-            );
-
-            $houseNumber =
-                $isSanJoseResident
-                    ? (
-                        $data[
-                            'complainant_house_number'
-                        ]
-                        ?? null
-                    )
-                    : null;
-
-            $sitio =
-                $isSanJoseResident
-                    ? (
-                        $data[
-                            'complainant_sitio'
-                        ]
-                        ?? null
-                    )
-                    : null;
-
-            $address =
-                $isSanJoseResident
-                    ? $this->sanJoseAddress(
-                        $houseNumber,
-                        $sitio
-                    )
-                    : (
-                        $data[
-                            'complainant_address'
-                        ]
-                        ?? null
-                    );
-
-            $firstName = trim(
-                $data[
-                    'complainant_first_name'
-                ]
-            );
-
-            $middleName = trim(
-                (string) (
-                    $data[
-                        'complainant_middle_name'
-                    ]
-                    ?? ''
-                )
-            );
-
-            $lastName = trim(
-                $data[
-                    'complainant_last_name'
-                ]
-            );
-
-            $suffix = trim(
-                (string) (
-                    $data[
-                        'complainant_suffix'
-                    ]
-                    ?? ''
-                )
-            );
-
-            $contactNumber = trim(
-                (string) (
-                    $data[
-                        'complainant_contact_number'
-                    ]
-                    ?? ''
-                )
-            );
-
-            /*
-             * Reuse a matching active complainant record when the
-             * same name and contact number already exist. We only
-             * auto-match when a contact number is available to avoid
-             * merging two different people who happen to share a name.
-             */
-            if ($contactNumber !== '') {
-                $resident =
-                    Resident::where(
-                        'is_active',
-                        true
-                    )
-                        ->whereHas(
-                            'complaints'
-                        )
-                        ->where(
-                            'first_name',
-                            $firstName
-                        )
-                        ->where(
-                            'last_name',
-                            $lastName
-                        )
-                        ->where(
-                            'contact_number',
-                            $contactNumber
-                        )
-                        ->when(
-                            $middleName !== '',
-                            fn ($query) =>
-                                $query->where(
-                                    'middle_name',
-                                    $middleName
-                                ),
-                            fn ($query) =>
-                                $query->whereNull(
-                                    'middle_name'
-                                )
-                        )
-                        ->when(
-                            $suffix !== '',
-                            fn ($query) =>
-                                $query->where(
-                                    'suffix',
-                                    $suffix
-                                ),
-                            fn ($query) =>
-                                $query->whereNull(
-                                    'suffix'
-                                )
-                        )
-                        ->first();
-            }
-
-            /*
-            |--------------------------------------------------------------------------
-            | Automatically Save New Complainant Record
-            |--------------------------------------------------------------------------
-            */
-
-            if (! $resident) {
-                $referenceService =
-                    app(
-                        ResidentReferenceService::class
-                    );
-
-                $resident = Resident::create([
-                    'resident_code' =>
-                        $referenceService->generate(),
-
-                    'first_name' =>
-                        $firstName,
-
-                    'middle_name' =>
-                        $middleName !== ''
-                            ? $middleName
-                            : null,
-
-                    'last_name' =>
-                        $lastName,
-
-                    'suffix' =>
-                        $suffix !== ''
-                            ? $suffix
-                            : null,
-
-                    'contact_number' =>
-                        $contactNumber !== ''
-                            ? $contactNumber
-                            : null,
-
-                    /*
-                     * We keep the existing residents table internally.
-                     * For Barangay San Jose complainants, purok stores
-                     * the Sitio value so the current schema can be reused.
-                     */
-                    'house_number' =>
-                        $houseNumber,
-
-                    'purok' =>
-                        $sitio,
-
-                    /*
-                     * Outside-San-Jose complainants keep their full
-                     * address in address_details.
-                     */
-                    'address_details' =>
-                        $isSanJoseResident
-                            ? null
-                            : $address,
-
-                    'is_active' =>
-                        true,
-
-                    'created_by' =>
-                        auth()->id(),
-                ]);
-
-                AuditLogService::log(
-                    action:
-                        'complainant_record_created',
-
-                    module:
-                        'Complainant Records',
-
-                    description:
-                        "Complainant record {$resident->resident_code} was created automatically from blotter case {$case->reference_number}.",
-
-                    auditable:
-                        $resident,
-
-                    newValues: [
-                        'resident_code' =>
-                            $resident->resident_code,
-
-                        'first_name' =>
-                            $resident->first_name,
-
-                        'middle_name' =>
-                            $resident->middle_name,
-
-                        'last_name' =>
-                            $resident->last_name,
-
-                        'suffix' =>
-                            $resident->suffix,
-
-                        'contact_number' =>
-                            $resident->contact_number,
-
-                        'house_number' =>
-                            $resident->house_number,
-
-                        'sitio' =>
-                            $resident->purok,
-
-                        'address_details' =>
-                            $resident->address_details,
-                    ]
-                );
-            }
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Build Case Snapshot From Saved Complainant Record
-        |--------------------------------------------------------------------------
-        */
-
-        $isSanJoseResident =
-            $this->residentIsFromSanJose(
-                $resident
-            );
-
-        $houseNumber =
-            $isSanJoseResident
-                ? $resident->house_number
-                : null;
-
-        $sitio =
-            $isSanJoseResident
-                ? (
-                    in_array(
-                        $resident->purok,
-                        [
-                            'Sitio 1',
-                            'Sitio 2',
-                            'Sitio 3',
-                            'Sitio 4',
-                        ],
-                        true
-                    )
-                        ? $resident->purok
-                        : null
-                )
-                : null;
-
-        $address =
-            $isSanJoseResident
-                ? $this->sanJoseAddress(
-                    $houseNumber,
-                    $sitio
-                )
-                : $this->residentAddress(
-                    $resident
-                );
-
-        $case
-            ->complainants()
-            ->create([
-                'resident_id' =>
-                    $resident->id,
-
-                'is_san_jose_resident' =>
-                    $isSanJoseResident,
-
-                'house_number' =>
-                    $houseNumber,
-
-                'sitio' =>
-                    $sitio,
-
-                'first_name' =>
-                    $resident->first_name,
-
-                'middle_name' =>
-                    $resident->middle_name,
-
-                'last_name' =>
-                    $resident->last_name,
-
-                'suffix' =>
-                    $resident->suffix,
-
-                'contact_number' =>
-                    $resident->contact_number,
-
-                'address' =>
-                    $address,
-            ]);
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Create Respondent
-    |--------------------------------------------------------------------------
-    */
-
-    private function createRespondent(
-        BlotterCase $case,
-        array $data
-    ): void {
-        $resident = null;
-
-        if (
-            ! empty(
-                $data[
-                    'respondent_resident_id'
-                ]
-            )
-        ) {
-            $resident = Resident::where(
-                'is_active',
-                true
-            )
-                ->whereHas(
-                    'complaints'
-                )
-                ->findOrFail(
-                    $data[
-                        'respondent_resident_id'
-                    ]
-                );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Determine Address Type
-        |--------------------------------------------------------------------------
-        */
-
-        if ($resident) {
-            /*
-             * A respondent may already exist in Complainant Records
-             * because they previously filed a different complaint.
-             * Reuse that profile without creating a new master record.
-             */
-            $isSanJoseResident =
-                $this->residentIsFromSanJose(
-                    $resident
-                );
-
-            $houseNumber =
-                $isSanJoseResident
-                    ? $resident->house_number
-                    : null;
-
-            $sitio =
-                $isSanJoseResident
-                    && in_array(
-                        $resident->purok,
-                        [
-                            'Sitio 1',
-                            'Sitio 2',
-                            'Sitio 3',
-                            'Sitio 4',
-                        ],
-                        true
-                    )
-                        ? $resident->purok
-                        : null;
-
-            $address =
-                $isSanJoseResident
-                    ? $this->sanJoseAddress(
-                        $houseNumber,
-                        $sitio
-                    )
-                    : $this->residentAddress(
-                        $resident
-                    );
-        } else {
-            $isSanJoseResident = ! (
-                $data[
-                    'respondent_not_san_jose'
-                ]
-                ?? false
-            );
-
-            if ($isSanJoseResident) {
-                $houseNumber =
-                    $data[
-                        'respondent_house_number'
-                    ]
-                    ?? null;
-
-                $sitio =
-                    $data[
-                        'respondent_sitio'
-                    ]
-                    ?? null;
-
-                $address =
-                    $this->sanJoseAddress(
-                        $houseNumber,
-                        $sitio
-                    );
-            } else {
-                $houseNumber = null;
-                $sitio = null;
-
-                $address =
-                    $data[
-                        'respondent_address'
-                    ]
-                    ?? null;
-            }
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Create Respondent Snapshot
-        |--------------------------------------------------------------------------
-        */
-
-        $case
-            ->respondents()
-            ->create([
-                'resident_id' =>
-                    $resident?->id,
-
-                'is_san_jose_resident' =>
-                    $isSanJoseResident,
-
-                'house_number' =>
-                    $houseNumber,
-
-                'sitio' =>
-                    $sitio,
-
-                'first_name' =>
-                    $resident?->first_name
-                    ?? $data[
-                        'respondent_first_name'
-                    ],
-
-                'middle_name' =>
-                    $resident?->middle_name
-                    ?? (
-                        $data[
-                            'respondent_middle_name'
-                        ]
-                        ?? null
-                    ),
-
-                'last_name' =>
-                    $resident?->last_name
-                    ?? $data[
-                        'respondent_last_name'
-                    ],
-
-                'suffix' =>
-                    $resident?->suffix
-                    ?? (
-                        $data[
-                            'respondent_suffix'
-                        ]
-                        ?? null
-                    ),
-
-                'contact_number' =>
-                    $resident?->contact_number
-                    ?? (
-                        $data[
-                            'respondent_contact_number'
-                        ]
-                        ?? null
-                    ),
-
-                'address' =>
-                    $address,
-            ]);
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Barangay San Jose Address Helper
-    |--------------------------------------------------------------------------
-    */
-
-    private function sanJoseAddress(
-        ?string $houseNumber,
-        ?string $sitio
-    ): string {
-        return collect([
-            $houseNumber
-                ? 'House No. ' . $houseNumber
-                : null,
-
-            $sitio,
-
-            'Barangay San Jose',
-        ])
-            ->filter()
-            ->join(', ');
-    }
-
-    /*
-    |--------------------------------------------------------------------------
     | Audit Snapshot Helper
     |--------------------------------------------------------------------------
     */
@@ -1342,6 +648,12 @@ class BlotterCaseController extends Controller
                     'status'
                 ),
 
+            'case_stage' =>
+                $this->auditAttribute(
+                    $case,
+                    'case_stage'
+                ),
+
             'created_by' =>
                 $this->auditAttribute(
                     $case,
@@ -1401,61 +713,5 @@ class BlotterCaseController extends Controller
         }
 
         return $value;
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Determine Whether Saved Complainant Is From Barangay San Jose
-    |--------------------------------------------------------------------------
-    */
-
-    private function residentIsFromSanJose(
-        Resident $resident
-    ): bool {
-        if (
-            in_array(
-                $resident->purok,
-                [
-                    'Sitio 1',
-                    'Sitio 2',
-                    'Sitio 3',
-                    'Sitio 4',
-                ],
-                true
-            )
-        ) {
-            return true;
-        }
-
-        $address =
-            strtolower(
-                $this->residentAddress(
-                    $resident
-                )
-            );
-
-        return str_contains(
-            $address,
-            'barangay san jose'
-        );
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Resident Address Helper
-    |--------------------------------------------------------------------------
-    */
-
-    private function residentAddress(
-        Resident $resident
-    ): string {
-        return collect([
-            $resident->house_number,
-            $resident->street,
-            $resident->purok,
-            $resident->address_details,
-        ])
-            ->filter()
-            ->join(', ');
     }
 }

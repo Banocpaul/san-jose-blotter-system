@@ -1147,11 +1147,11 @@
         @php
             $metrics = [
                 [
-                    'label' => 'Active Residents',
+                    'label' => 'Active People',
                     'value' => $totalResidents ?? 0,
                     'icon' => 'bi-people',
                     'route' => route('residents.index'),
-                    'note' => 'View resident registry',
+                    'note' => 'Open People Directory',
                 ],
                 [
                     'label' => 'Total Cases',
@@ -1264,7 +1264,7 @@
     <div class="row g-3 metric-grid">
 
         @foreach([
-            ['Active Residents', $totalResidents ?? 0, 'bi-people'],
+            ['Active People', $totalResidents ?? 0, 'bi-people'],
             ['Total Cases', $totalCases ?? 0, 'bi-folder2'],
             ['Pending', $pendingCases ?? 0, 'bi-hourglass-split'],
             ['Under Investigation', $underInvestigationCases ?? 0, 'bi-search'],
@@ -1440,11 +1440,11 @@
                 <div>
 
                     <div class="quick-action-title-lux">
-                        Add resident
+                        Add person
                     </div>
 
                     <div class="quick-action-subtitle-lux">
-                        Create a resident record
+                        Create a People Directory record
                     </div>
 
                 </div>

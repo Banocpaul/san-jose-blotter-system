@@ -63,14 +63,7 @@ class DashboardController extends Controller
             )
         ) {
             $data['totalResidents'] =
-                Resident::where(
-                    'is_active',
-                    true
-                )
-                    ->whereHas(
-                        'complaints'
-                    )
-                    ->count();
+                Resident::active()->count();
 
             /*
             |--------------------------------------------------------------------------
@@ -134,28 +127,47 @@ class DashboardController extends Controller
                 )->count();
 
             $data['recentCases'] =
-                BlotterCase::with([
-                    'incidentType',
-                    'complainants',
-                    'respondents',
-                ])
+                BlotterCase::query()
+                    ->select([
+                        'id',
+                        'reference_number',
+                        'incident_type_id',
+                        'status',
+                        'reported_at',
+                    ])
+                    ->with([
+                        'incidentType:id,name',
+                        'complainants:id,blotter_case_id,first_name,last_name',
+                        'respondents:id,blotter_case_id,first_name,last_name',
+                    ])
                     ->latest('reported_at')
                     ->limit(5)
                     ->get();
 
             $data['upcomingHearings'] =
-                MediationSession::with([
-                    'blotterCase',
-                    'luponMember',
-                ])
+                MediationSession::query()
+                    ->select([
+                        'id',
+                        'blotter_case_id',
+                        'hearing_number',
+                        'scheduled_date',
+                        'scheduled_time',
+                        'venue',
+                        'lupon_member_id',
+                        'status',
+                    ])
+                    ->with([
+                        'blotterCase:id,reference_number',
+                        'luponMember:id,name',
+                    ])
                     ->where(
                         'status',
                         'Scheduled'
                     )
-                    ->whereDate(
+                    ->where(
                         'scheduled_date',
                         '>=',
-                        today()
+                        today()->toDateString()
                     )
                     ->orderBy(
                         'scheduled_date'
@@ -180,14 +192,7 @@ class DashboardController extends Controller
 
         if ($role === 'staff') {
             $data['totalResidents'] =
-                Resident::where(
-                    'is_active',
-                    true
-                )
-                    ->whereHas(
-                        'complaints'
-                    )
-                    ->count();
+                Resident::active()->count();
 
             $statusCounts =
                 BlotterCase::query()
@@ -210,11 +215,19 @@ class DashboardController extends Controller
                 ] ?? 0;
 
             $data['recentCases'] =
-                BlotterCase::with([
-                    'incidentType',
-                    'complainants',
-                    'respondents',
-                ])
+                BlotterCase::query()
+                    ->select([
+                        'id',
+                        'reference_number',
+                        'incident_type_id',
+                        'status',
+                        'reported_at',
+                    ])
+                    ->with([
+                        'incidentType:id,name',
+                        'complainants:id,blotter_case_id,first_name,last_name',
+                        'respondents:id,blotter_case_id,first_name,last_name',
+                    ])
                     ->latest(
                         'reported_at'
                     )
@@ -276,10 +289,17 @@ class DashboardController extends Controller
 
             $data['recentCases'] =
                 (clone $assignedQuery)
+                    ->select([
+                        'blotter_cases.id',
+                        'blotter_cases.reference_number',
+                        'blotter_cases.incident_type_id',
+                        'blotter_cases.status',
+                        'blotter_cases.reported_at',
+                    ])
                     ->with([
-                        'incidentType',
-                        'complainants',
-                        'respondents',
+                        'incidentType:id,name',
+                        'complainants:id,blotter_case_id,first_name,last_name',
+                        'respondents:id,blotter_case_id,first_name,last_name',
                     ])
                     ->latest(
                         'reported_at'
@@ -344,10 +364,17 @@ class DashboardController extends Controller
 
             $data['recentCases'] =
                 (clone $mediationCaseQuery)
+                    ->select([
+                        'blotter_cases.id',
+                        'blotter_cases.reference_number',
+                        'blotter_cases.incident_type_id',
+                        'blotter_cases.status',
+                        'blotter_cases.reported_at',
+                    ])
                     ->with([
-                        'incidentType',
-                        'complainants',
-                        'respondents',
+                        'incidentType:id,name',
+                        'complainants:id,blotter_case_id,first_name,last_name',
+                        'respondents:id,blotter_case_id,first_name,last_name',
                     ])
                     ->latest(
                         'reported_at'
@@ -356,10 +383,21 @@ class DashboardController extends Controller
                     ->get();
 
             $data['upcomingHearings'] =
-                MediationSession::with([
-                    'blotterCase',
-                    'luponMember',
-                ])
+                MediationSession::query()
+                    ->select([
+                        'id',
+                        'blotter_case_id',
+                        'hearing_number',
+                        'scheduled_date',
+                        'scheduled_time',
+                        'venue',
+                        'lupon_member_id',
+                        'status',
+                    ])
+                    ->with([
+                        'blotterCase:id,reference_number',
+                        'luponMember:id,name',
+                    ])
                     ->where(
                         'lupon_member_id',
                         $user->id
@@ -368,10 +406,10 @@ class DashboardController extends Controller
                         'status',
                         'Scheduled'
                     )
-                    ->whereDate(
+                    ->where(
                         'scheduled_date',
                         '>=',
-                        today()
+                        today()->toDateString()
                     )
                     ->orderBy(
                         'scheduled_date'

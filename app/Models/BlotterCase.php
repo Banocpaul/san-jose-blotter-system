@@ -2,20 +2,16 @@
 
 namespace App\Models;
 
+use App\Enums\CaseStage;
 use App\Enums\CaseStatus;
 use App\Services\CaseReferenceService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class BlotterCase extends Model
 {
     use SoftDeletes;
-
-    /*
-    |--------------------------------------------------------------------------
-    | Mass Assignable Fields
-    |--------------------------------------------------------------------------
-    */
 
     protected $fillable = [
         'incident_type_id',
@@ -26,16 +22,11 @@ class BlotterCase extends Model
         'initial_action',
         'remarks',
         'status',
+        'case_stage',
         'created_by',
         'reported_at',
         'closed_at',
     ];
-
-    /*
-    |--------------------------------------------------------------------------
-    | Attribute Casting
-    |--------------------------------------------------------------------------
-    */
 
     protected function casts(): array
     {
@@ -44,23 +35,13 @@ class BlotterCase extends Model
             'reported_at' => 'datetime',
             'closed_at' => 'datetime',
             'status' => CaseStatus::class,
+            'case_stage' => CaseStage::class,
         ];
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Model Events
-    |--------------------------------------------------------------------------
-    |
-    | Automatically generate the reference number and default values whenever
-    | a new blotter case is created.
-    |
-    */
 
     protected static function booted(): void
     {
         static::creating(function (BlotterCase $case) {
-
             if (empty($case->reference_number)) {
                 $case->reference_number =
                     app(CaseReferenceService::class)->generate();
@@ -68,6 +49,10 @@ class BlotterCase extends Model
 
             if (empty($case->status)) {
                 $case->status = CaseStatus::Pending;
+            }
+
+            if (empty($case->case_stage)) {
+                $case->case_stage = CaseStage::New;
             }
 
             if (empty($case->reported_at)) {
@@ -78,7 +63,66 @@ class BlotterCase extends Model
 
     /*
     |--------------------------------------------------------------------------
-    | Incident Type
+    | Reusable Query Scopes
+    |--------------------------------------------------------------------------
+    */
+
+    public function scopeVisibleTo(Builder $query, User $user): Builder
+    {
+        $role = $user->role?->slug;
+
+        if ($role === 'councilor') {
+            return $query->whereHas(
+                'assignments',
+                fn (Builder $assignment) => $assignment
+                    ->where('assigned_to', $user->id)
+                    ->whereNull('completed_at')
+            );
+        }
+
+        if ($role === 'lupon') {
+            return $query->whereHas(
+                'mediationSessions',
+                fn (Builder $session) => $session
+                    ->where('lupon_member_id', $user->id)
+            );
+        }
+
+        return $query;
+    }
+
+    public function scopeSearchCase(Builder $query, ?string $search): Builder
+    {
+        $search = trim((string) $search);
+
+        if ($search === '') {
+            return $query;
+        }
+
+        return $query->where(function (Builder $caseQuery) use ($search) {
+            $caseQuery
+                ->where('reference_number', 'like', "%{$search}%")
+                ->orWhere('location', 'like', "%{$search}%")
+                ->orWhereHas(
+                    'complainants',
+                    fn (Builder $person) => $person
+                        ->where('first_name', 'like', "%{$search}%")
+                        ->orWhere('middle_name', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%")
+                )
+                ->orWhereHas(
+                    'respondents',
+                    fn (Builder $person) => $person
+                        ->where('first_name', 'like', "%{$search}%")
+                        ->orWhere('middle_name', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%")
+                );
+        });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Relationships
     |--------------------------------------------------------------------------
     */
 
@@ -90,12 +134,6 @@ class BlotterCase extends Model
         );
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | User Who Created The Case
-    |--------------------------------------------------------------------------
-    */
-
     public function creator()
     {
         return $this->belongsTo(
@@ -103,12 +141,6 @@ class BlotterCase extends Model
             'created_by'
         );
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Complainants
-    |--------------------------------------------------------------------------
-    */
 
     public function complainants()
     {
@@ -118,12 +150,6 @@ class BlotterCase extends Model
         );
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Respondents
-    |--------------------------------------------------------------------------
-    */
-
     public function respondents()
     {
         return $this->hasMany(
@@ -131,12 +157,6 @@ class BlotterCase extends Model
             'blotter_case_id'
         );
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Witnesses
-    |--------------------------------------------------------------------------
-    */
 
     public function witnesses()
     {
@@ -146,15 +166,6 @@ class BlotterCase extends Model
         );
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Assignment History
-    |--------------------------------------------------------------------------
-    |
-    | A case may be reassigned later, so we keep all assignment records.
-    |
-    */
-
     public function assignments()
     {
         return $this->hasMany(
@@ -162,15 +173,6 @@ class BlotterCase extends Model
             'blotter_case_id'
         );
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Current Assignment
-    |--------------------------------------------------------------------------
-    |
-    | Returns the active assignment where completed_at is still NULL.
-    |
-    */
 
     public function currentAssignment()
     {
@@ -182,31 +184,35 @@ class BlotterCase extends Model
             ->latestOfMany();
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Investigation Notes
-    |--------------------------------------------------------------------------
-    */
-
     public function investigationNotes()
     {
         return $this->hasMany(
             InvestigationNote::class,
             'blotter_case_id'
         );
-    } public function mediationSessions()
-{
-    return $this->hasMany(
-        MediationSession::class,
-        'blotter_case_id'
-    );
-}
+    }
 
-public function latestMediationSession()
-{
-    return $this->hasOne(
-        MediationSession::class,
-        'blotter_case_id'
-    )->latestOfMany();
-}
+    public function mediationSessions()
+    {
+        return $this->hasMany(
+            MediationSession::class,
+            'blotter_case_id'
+        );
+    }
+
+    public function latestMediationSession()
+    {
+        return $this->hasOne(
+            MediationSession::class,
+            'blotter_case_id'
+        )->latestOfMany();
+    }
+
+    public function caseResolution()
+    {
+        return $this->hasOne(
+            CaseResolution::class,
+            'blotter_case_id'
+        );
+    }
 }

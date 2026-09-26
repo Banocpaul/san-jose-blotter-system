@@ -37,4 +37,12 @@ class MediationOutcome extends Model
             'recorded_by'
         );
     }
+
+    public function caseResolution()
+    {
+        return $this->hasOne(
+            CaseResolution::class,
+            'mediation_outcome_id'
+        );
+    }
 }
