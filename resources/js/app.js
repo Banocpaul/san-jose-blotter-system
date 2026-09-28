@@ -258,7 +258,7 @@ document.addEventListener('DOMContentLoaded', function () {
             searchInput.value = '';
             searchInput.classList.add('d-none');
             selectedName.textContent = person.name;
-            selectedMeta.textContent = `${person.code} • ${person.classification}`;
+            selectedMeta.textContent = `${person.code} â€¢ ${person.classification}`;
             selectedBox.classList.remove('d-none');
             hideResults();
         }
@@ -350,18 +350,20 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         const runSearch = debounce(async function () {
-            const term = searchInput.value.trim();
+    const term = searchInput.value.trim();
 
-            if (term.length < 2) {
-                hideResults();
-                return;
-            }
+    const payload = await fetchPeople(
+        new URLSearchParams({
+            q: term,
+        })
+    );
 
-            const payload = await fetchPeople(new URLSearchParams({ q: term }));
-            if (payload) {
-                renderResults(payload.data || []);
-            }
-        });
+    if (payload) {
+        renderResults(
+            payload.data || []
+        );
+    }
+});
 
         searchInput.addEventListener('input', runSearch);
         searchInput.addEventListener('focus', runSearch);

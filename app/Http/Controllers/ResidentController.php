@@ -94,16 +94,13 @@ class ResidentController extends Controller
                 'middle_name',
                 'last_name',
                 'suffix',
+                'contact_number',
                 'classification',
             ]);
 
         if ($id > 0) {
             $query->whereKey($id);
-        } else {
-            if (strlen($term) < 2) {
-                return response()->json(['data' => []]);
-            }
-
+        } elseif ($term !== '') {
             $tokens = array_slice(
                 preg_split('/\s+/', $term, -1, PREG_SPLIT_NO_EMPTY),
                 0,
@@ -132,15 +129,23 @@ class ResidentController extends Controller
             });
         }
 
+        /*
+         * Blank search = full active People Directory.
+         * This lets the picker open like a searchable dropdown on focus/click.
+         */
         $people = $query
             ->orderBy('last_name')
             ->orderBy('first_name')
-            ->limit($id > 0 ? 1 : 12)
+            ->when(
+                $id > 0,
+                fn ($peopleQuery) => $peopleQuery->limit(1)
+            )
             ->get()
             ->map(fn (Resident $person) => [
                 'id' => $person->id,
                 'code' => $person->resident_code,
                 'name' => $person->full_name,
+                'contact' => $person->contact_number,
                 'classification' => $person->classification ?: 'Resident',
             ])
             ->values();
