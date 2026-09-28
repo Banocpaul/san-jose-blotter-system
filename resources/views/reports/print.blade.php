@@ -53,8 +53,8 @@
                 <th>Incident Type</th>
                 <th>Complainant(s)</th>
                 <th>Respondent(s)</th>
-                <th>Stage</th>
-                <th>Status</th>
+                <th>Current Stage</th>
+                <th>Record Status</th>
                 <th>Location</th>
             </tr>
         </thead>
@@ -85,7 +85,7 @@
                         @endforelse
                     </td>
                     <td>{{ $case->case_stage?->value ?? 'New' }}</td>
-                    <td>{{ $case->status?->value ?? (string) $case->status }}</td>
+                    <td>{{ $case->record_status?->value ?? 'Open' }}</td>
                     <td>{{ $case->location ?: '—' }}</td>
                 </tr>
             @empty

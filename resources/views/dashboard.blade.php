@@ -25,13 +25,8 @@
     };
 
     $closedCases =
-        ($settledCases ?? 0)
-        +
-        ($resolvedCases ?? 0)
-        +
-        ($referredCases ?? 0)
-        +
-        ($dismissedCases ?? 0);
+        $closedRecordCases
+        ?? 0;
 @endphp
 
 
@@ -1157,50 +1152,64 @@
                     'label' => 'Total Cases',
                     'value' => $totalCases ?? 0,
                     'icon' => 'bi-folder2',
-                    'route' => route('blotter.index'),
-                    'note' => 'Open case registry',
+                    'route' => route('cases.index'),
+                    'note' => 'Open Case Management',
                 ],
                 [
-                    'label' => 'Pending',
-                    'value' => $pendingCases ?? 0,
-                    'icon' => 'bi-hourglass-split',
-                    'route' => route('blotter.index', ['status' => 'Pending']),
-                    'note' => 'Review pending cases',
+                    'label' => 'Open Records',
+                    'value' => $openCases ?? 0,
+                    'icon' => 'bi-folder2-open',
+                    'route' => route('cases.index', ['record_status' => 'Open']),
+                    'note' => 'Cases still being processed',
                 ],
                 [
-                    'label' => 'Under Investigation',
-                    'value' => $underInvestigationCases ?? 0,
+                    'label' => 'New',
+                    'value' => $newCases ?? 0,
+                    'icon' => 'bi-file-earmark-plus',
+                    'route' => route('cases.index', ['stage' => 'New']),
+                    'note' => 'Newly recorded cases',
+                ],
+                [
+                    'label' => 'Under Assessment',
+                    'value' => $underAssessmentCases ?? 0,
                     'icon' => 'bi-search',
-                    'route' => route('blotter.index', ['status' => 'Under Investigation']),
-                    'note' => 'View investigations',
+                    'route' => route('cases.index', ['stage' => 'Under Assessment']),
+                    'note' => 'Cases under assessment',
                 ],
                 [
                     'label' => 'For Mediation',
                     'value' => $forMediationCases ?? 0,
                     'icon' => 'bi-chat-square-text',
-                    'route' => route('blotter.index', ['status' => 'For Mediation']),
-                    'note' => 'View mediation queue',
+                    'route' => route('cases.index', ['stage' => 'For Mediation']),
+                    'note' => 'Cases awaiting mediation',
+                ],
+                [
+                    'label' => 'For Pangkat/Conciliation',
+                    'value' => $forPangkatCases ?? 0,
+                    'icon' => 'bi-people',
+                    'route' => route('cases.index', ['stage' => 'For Pangkat/Conciliation']),
+                    'note' => 'Cases in Pangkat proceedings',
                 ],
                 [
                     'label' => 'Scheduled Hearings',
                     'value' => $scheduledHearings ?? 0,
                     'icon' => 'bi-calendar3',
-                    'route' => null,
-                    'note' => 'Active mediation schedules',
+                    'route' => route('hearings.index'),
+                    'note' => 'Active hearing schedules',
                 ],
                 [
-                    'label' => 'Settled',
-                    'value' => $settledCases ?? 0,
+                    'label' => 'Resolved Records',
+                    'value' => $resolvedRecordCases ?? 0,
                     'icon' => 'bi-check2-circle',
-                    'route' => route('blotter.index', ['status' => 'Settled']),
-                    'note' => 'View settled cases',
+                    'route' => route('cases.index', ['record_status' => 'Resolved']),
+                    'note' => 'Successfully resolved records',
                 ],
                 [
-                    'label' => 'Closed Cases',
+                    'label' => 'Closed Records',
                     'value' => $closedCases,
                     'icon' => 'bi-archive',
-                    'route' => null,
-                    'note' => 'Settled, resolved, referred, dismissed',
+                    'route' => route('cases.index', ['record_status' => 'Closed']),
+                    'note' => 'Closed barangay-level records',
                 ],
             ];
         @endphp
@@ -1266,8 +1275,8 @@
         @foreach([
             ['Active People', $totalResidents ?? 0, 'bi-people'],
             ['Total Cases', $totalCases ?? 0, 'bi-folder2'],
-            ['Pending', $pendingCases ?? 0, 'bi-hourglass-split'],
-            ['Under Investigation', $underInvestigationCases ?? 0, 'bi-search'],
+            ['New', $newCases ?? 0, 'bi-file-earmark-plus'],
+            ['Under Assessment', $underAssessmentCases ?? 0, 'bi-search'],
         ] as [$label, $value, $icon])
 
             <div class="col-sm-6 col-xl-3">
@@ -1310,9 +1319,9 @@
     <div class="row g-3 metric-grid">
 
         @foreach([
-            ['My Active Cases', $assignedCases ?? 0, 'bi-briefcase'],
-            ['Under Investigation', $underInvestigationCases ?? 0, 'bi-search'],
-            ['Pending', $pendingCases ?? 0, 'bi-hourglass-split'],
+            ['My Assigned Cases', $assignedCases ?? 0, 'bi-briefcase'],
+            ['Under Assessment', $underAssessmentCases ?? 0, 'bi-search'],
+            ['Open Records', $openCases ?? 0, 'bi-folder2-open'],
         ] as [$label, $value, $icon])
 
             <div class="col-md-4">
@@ -1357,6 +1366,7 @@
         @foreach([
             ['My Mediation Cases', $assignedCases ?? 0, 'bi-folder2'],
             ['For Mediation', $forMediationCases ?? 0, 'bi-chat-square-text'],
+            ['For Pangkat/Conciliation', $forPangkatCases ?? 0, 'bi-people'],
             ['Scheduled Hearings', $scheduledHearings ?? 0, 'bi-calendar3'],
         ] as [$label, $value, $icon])
 
@@ -1618,7 +1628,8 @@
                             <th>Reference</th>
                             <th>Incident</th>
                             <th>Parties</th>
-                            <th>Status</th>
+                            <th>Current Stage</th>
+                            <th>Record Status</th>
                             <th>Date</th>
                             <th></th>
                         </tr>
@@ -1633,36 +1644,35 @@
                         )
 
                             @php
-                                $caseStatus =
-                                    $case->status instanceof
-                                    \App\Enums\CaseStatus
-                                        ? $case->status->value
-                                        : $case->status;
+                                $caseStage =
+                                    $case->case_stage;
 
-                                $statusClass =
-                                    match($caseStatus) {
-                                        'Pending'
-                                            => 'text-bg-warning',
+                                $recordStatus =
+                                    $case->record_status;
 
-                                        'Under Investigation'
-                                            => 'text-bg-primary',
+                                $stageText =
+                                    $caseStage instanceof
+                                    \App\Enums\CaseStage
+                                        ? $caseStage->value
+                                        : ($caseStage ?? 'New');
 
-                                        'For Mediation'
-                                            => 'text-bg-info',
+                                $stageClass =
+                                    $caseStage instanceof
+                                    \App\Enums\CaseStage
+                                        ? $caseStage->badgeClass()
+                                        : 'text-bg-secondary';
 
-                                        'Settled',
-                                        'Resolved'
-                                            => 'text-bg-success',
+                                $recordStatusText =
+                                    $recordStatus instanceof
+                                    \App\Enums\RecordStatus
+                                        ? $recordStatus->value
+                                        : ($recordStatus ?? 'Open');
 
-                                        'Referred'
-                                            => 'text-bg-dark',
-
-                                        'Dismissed'
-                                            => 'text-bg-secondary',
-
-                                        default
-                                            => 'text-bg-secondary',
-                                    };
+                                $recordStatusClass =
+                                    $recordStatus instanceof
+                                    \App\Enums\RecordStatus
+                                        ? $recordStatus->badgeClass()
+                                        : 'text-bg-primary';
 
                                 $complainant =
                                     $case
@@ -1736,9 +1746,20 @@
                                 <td>
 
                                     <span
-                                        class="badge {{ $statusClass }}"
+                                        class="badge {{ $stageClass }}"
                                     >
-                                        {{ $caseStatus }}
+                                        {{ $stageText }}
+                                    </span>
+
+                                </td>
+
+
+                                <td>
+
+                                    <span
+                                        class="badge {{ $recordStatusClass }}"
+                                    >
+                                        {{ $recordStatusText }}
                                     </span>
 
                                 </td>
@@ -1778,7 +1799,7 @@
 
                             <tr>
 
-                                <td colspan="6">
+                                <td colspan="7">
 
                                     <div class="empty-state-lux">
 

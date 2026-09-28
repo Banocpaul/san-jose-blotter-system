@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\CaseStage;
 use App\Enums\CaseStatus;
+use App\Enums\RecordStatus;
 use App\Models\BlotterCase;
 use App\Models\CaseAssignment;
 use App\Models\InvestigationNote;
@@ -18,24 +19,12 @@ class CaseWorkflowController extends Controller
     |--------------------------------------------------------------------------
     | Assign Case To Councilor
     |--------------------------------------------------------------------------
-    |
-    | Only Barangay Captain and Secretary are authorized
-    | to assign or reassign blotter cases.
-    |
     */
 
     public function assign(
         Request $request,
         BlotterCase $blotter
     ) {
-        /*
-         * Record-level authorization.
-         *
-         * Policy:
-         * Captain   -> allowed
-         * Secretary -> allowed
-         * Others    -> denied
-         */
         $this->authorize(
             'assign',
             $blotter
@@ -65,14 +54,6 @@ class CaseWorkflowController extends Controller
         |--------------------------------------------------------------------------
         | Validate Councilor
         |--------------------------------------------------------------------------
-        |
-        | exists:users,id is not enough.
-        |
-        | The selected user must:
-        | - exist
-        | - be active
-        | - have the Councilor role
-        |
         */
 
         $councilor = User::with('role')
@@ -95,32 +76,36 @@ class CaseWorkflowController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Prevent Assignment Of Closed / Mediation Cases
+        | Prevent Assignment Of Finished / Mediation Cases
         |--------------------------------------------------------------------------
+        |
+        | A case can only be assigned while the overall record is Open.
+        |
+        | It must also still be in either:
+        |
+        | New
+        | Under Assessment
+        |
         */
 
-        $status = $blotter->status instanceof CaseStatus
-            ? $blotter->status
-            : CaseStatus::from(
-                $blotter->status
-            );
-
         if (
+            $blotter->record_status !== RecordStatus::Open
+            ||
             in_array(
-                $status,
+                $blotter->case_stage,
                 [
-                    CaseStatus::ForMediation,
-                    CaseStatus::Settled,
-                    CaseStatus::Resolved,
-                    CaseStatus::Referred,
-                    CaseStatus::Dismissed,
+                    CaseStage::ForMediation,
+                    CaseStage::ForPangkatConciliation,
+                    CaseStage::ForFurtherActionCfa,
+                    CaseStage::SettledResolved,
+                    CaseStage::Closed,
                 ],
                 true
             )
         ) {
             return back()->withErrors([
                 'assignment' =>
-                    'This case can no longer be assigned to a Councilor in its current status.',
+                    'This case can no longer be assigned to a Councilor in its current stage.',
             ]);
         }
 
@@ -137,9 +122,9 @@ class CaseWorkflowController extends Controller
                 $data
             ) {
                 /*
-                 * Lock the case so two users cannot
-                 * assign it at exactly the same time.
+                 * Lock case against simultaneous workflow updates.
                  */
+
                 $lockedCase = BlotterCase::whereKey(
                     $blotter->id
                 )
@@ -147,10 +132,37 @@ class CaseWorkflowController extends Controller
                     ->firstOrFail();
 
                 /*
-                 * Find the current active assignment before
-                 * closing it so we can distinguish a new
-                 * assignment from a reassignment.
+                 * Check the status again after obtaining the database lock.
                  */
+
+                if (
+                    $lockedCase->record_status
+                    !== RecordStatus::Open
+                    ||
+                    in_array(
+                        $lockedCase->case_stage,
+                        [
+                            CaseStage::ForMediation,
+                            CaseStage::ForPangkatConciliation,
+                            CaseStage::ForFurtherActionCfa,
+                            CaseStage::SettledResolved,
+                            CaseStage::Closed,
+                        ],
+                        true
+                    )
+                ) {
+                    abort(
+                        409,
+                        'The case workflow changed while the assignment was being processed.'
+                    );
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | Existing Active Assignment
+                |--------------------------------------------------------------------------
+                */
+
                 $previousAssignment =
                     CaseAssignment::where(
                         'blotter_case_id',
@@ -177,8 +189,11 @@ class CaseWorkflowController extends Controller
                 }
 
                 /*
-                 * Create the new active assignment.
-                 */
+                |--------------------------------------------------------------------------
+                | Create Assignment
+                |--------------------------------------------------------------------------
+                */
+
                 $newAssignment =
                     CaseAssignment::create([
                         'blotter_case_id' =>
@@ -203,15 +218,23 @@ class CaseWorkflowController extends Controller
                     ]);
 
                 /*
-                 * Once assigned to a Councilor,
-                 * the case enters investigation.
-                 */
+                |--------------------------------------------------------------------------
+                | Move Case To Under Assessment
+                |--------------------------------------------------------------------------
+                |
+                | Legacy status is retained temporarily for compatibility.
+                |
+                */
+
                 $lockedCase->update([
                     'status' =>
                         CaseStatus::UnderInvestigation,
 
                     'case_stage' =>
                         CaseStage::UnderAssessment,
+
+                    'record_status' =>
+                        RecordStatus::Open,
 
                     'closed_at' =>
                         null,
@@ -226,38 +249,50 @@ class CaseWorkflowController extends Controller
                 $isReassignment =
                     $previousAssignment !== null;
 
-                $action = $isReassignment
-                    ? 'reassigned'
-                    : 'assigned';
+                $action =
+                    $isReassignment
+                        ? 'reassigned'
+                        : 'assigned';
 
-                $description = $isReassignment
-                    ? "Case {$lockedCase->reference_number} was reassigned to {$councilor->name}."
-                    : "Case {$lockedCase->reference_number} was assigned to {$councilor->name}.";
+                $description =
+                    $isReassignment
+                        ? "Case {$lockedCase->reference_number} was reassigned to {$councilor->name}."
+                        : "Case {$lockedCase->reference_number} was assigned to {$councilor->name}.";
 
                 AuditLogService::log(
-                    action: $action,
-                    module: 'Blotter Cases',
-                    description: $description,
-                    auditable: $lockedCase,
-                    oldValues: $isReassignment
-                        ? [
-                            'assignment_id' =>
-                                $previousAssignment->id,
+                    action:
+                        $action,
 
-                            'assigned_to' =>
-                                $previousAssignment->assigned_to,
+                    module:
+                        'Blotter Cases',
 
-                            'assigned_to_name' =>
-                                $previousCouncilor?->name,
+                    description:
+                        $description,
 
-                            'completed_at' =>
-                                $previousAssignment
-                                    ->completed_at
-                                    ?->format(
-                                        'Y-m-d H:i:s'
-                                    ),
-                        ]
-                        : [],
+                    auditable:
+                        $lockedCase,
+
+                    oldValues:
+                        $isReassignment
+                            ? [
+                                'assignment_id' =>
+                                    $previousAssignment->id,
+
+                                'assigned_to' =>
+                                    $previousAssignment->assigned_to,
+
+                                'assigned_to_name' =>
+                                    $previousCouncilor?->name,
+
+                                'completed_at' =>
+                                    $previousAssignment
+                                        ->completed_at
+                                        ?->format(
+                                            'Y-m-d H:i:s'
+                                        ),
+                            ]
+                            : [],
+
                     newValues: [
                         'assignment_id' =>
                             $newAssignment->id,
@@ -282,12 +317,22 @@ class CaseWorkflowController extends Controller
                                     'Y-m-d H:i:s'
                                 ),
 
+                        /*
+                         * Temporary legacy status.
+                         */
                         'case_status' =>
                             CaseStatus::UnderInvestigation
                                 ->value,
 
+                        /*
+                         * Client workflow.
+                         */
                         'case_stage' =>
                             CaseStage::UnderAssessment
+                                ->value,
+
+                        'record_status' =>
+                            RecordStatus::Open
                                 ->value,
                     ]
                 );
@@ -306,24 +351,12 @@ class CaseWorkflowController extends Controller
     |--------------------------------------------------------------------------
     | Add Investigation Note
     |--------------------------------------------------------------------------
-    |
-    | Captain and Secretary may add notes to cases.
-    |
-    | Councilors may only add investigation notes to
-    | cases that are CURRENTLY assigned to them.
-    |
     */
 
     public function addInvestigationNote(
         Request $request,
         BlotterCase $blotter
     ) {
-        /*
-         * Critical record-level authorization.
-         *
-         * A Councilor cannot bypass the UI by changing
-         * the blotter ID in the request.
-         */
         $this->authorize(
             'investigate',
             $blotter
@@ -351,37 +384,26 @@ class CaseWorkflowController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Prevent Notes On Closed Cases
+        | Prevent Notes On Finished Records
         |--------------------------------------------------------------------------
+        |
+        | Resolved and Closed cases must no longer accept investigation notes.
+        |
         */
 
-        $status = $blotter->status instanceof CaseStatus
-            ? $blotter->status
-            : CaseStatus::from(
-                $blotter->status
-            );
-
         if (
-            in_array(
-                $status,
-                [
-                    CaseStatus::Settled,
-                    CaseStatus::Resolved,
-                    CaseStatus::Referred,
-                    CaseStatus::Dismissed,
-                ],
-                true
-            )
+            $blotter->record_status
+            !== RecordStatus::Open
         ) {
             return back()->withErrors([
                 'investigation' =>
-                    'Investigation notes cannot be added to a closed case.',
+                    'Investigation notes cannot be added to a resolved or closed case.',
             ]);
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Create Investigation Note + Audit Trail
+        | Create Investigation Note
         |--------------------------------------------------------------------------
         */
 
@@ -390,10 +412,32 @@ class CaseWorkflowController extends Controller
                 $blotter,
                 $data
             ) {
+                /*
+                 * Lock the parent case to prevent a note from being added
+                 * while another request closes or resolves the case.
+                 */
+
+                $lockedCase =
+                    BlotterCase::whereKey(
+                        $blotter->id
+                    )
+                        ->lockForUpdate()
+                        ->firstOrFail();
+
+                if (
+                    $lockedCase->record_status
+                    !== RecordStatus::Open
+                ) {
+                    abort(
+                        409,
+                        'This case is no longer open.'
+                    );
+                }
+
                 $investigationNote =
                     InvestigationNote::create([
                         'blotter_case_id' =>
-                            $blotter->id,
+                            $lockedCase->id,
 
                         'user_id' =>
                             auth()->id(),
@@ -410,6 +454,12 @@ class CaseWorkflowController extends Controller
                             now(),
                     ]);
 
+                /*
+                |--------------------------------------------------------------------------
+                | Audit Trail
+                |--------------------------------------------------------------------------
+                */
+
                 AuditLogService::log(
                     action:
                         'investigation_note_added',
@@ -418,17 +468,18 @@ class CaseWorkflowController extends Controller
                         'Blotter Cases',
 
                     description:
-                        "Investigation note was added to case {$blotter->reference_number}.",
+                        "Investigation note was added to case {$lockedCase->reference_number}.",
 
                     auditable:
                         $investigationNote,
 
                     newValues: [
                         'blotter_case_id' =>
-                            $blotter->id,
+                            $lockedCase->id,
 
                         'reference_number' =>
-                            $blotter->reference_number,
+                            $lockedCase
+                                ->reference_number,
 
                         'investigation_note_id' =>
                             $investigationNote->id,
@@ -443,6 +494,16 @@ class CaseWorkflowController extends Controller
                         'user_id' =>
                             $investigationNote
                                 ->user_id,
+
+                        'case_stage' =>
+                            $lockedCase
+                                ->case_stage
+                                ?->value,
+
+                        'record_status' =>
+                            $lockedCase
+                                ->record_status
+                                ?->value,
 
                         'noted_at' =>
                             $investigationNote

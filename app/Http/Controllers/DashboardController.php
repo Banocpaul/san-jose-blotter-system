@@ -2,7 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\CaseStatus;
+use App\Enums\CaseStage;
+use App\Enums\RecordStatus;
 use App\Models\BlotterCase;
 use App\Models\MediationSession;
 use App\Models\Resident;
@@ -27,14 +28,23 @@ class DashboardController extends Controller
             'totalResidents' => 0,
             'totalCases' => 0,
 
-            'pendingCases' => 0,
-            'underInvestigationCases' => 0,
-            'forMediationCases' => 0,
+            /*
+             * Overall Record Status
+             */
+            'openCases' => 0,
+            'resolvedRecordCases' => 0,
+            'closedRecordCases' => 0,
 
-            'settledCases' => 0,
-            'resolvedCases' => 0,
-            'referredCases' => 0,
-            'dismissedCases' => 0,
+            /*
+             * Detailed Current Stage
+             */
+            'newCases' => 0,
+            'underAssessmentCases' => 0,
+            'forMediationCases' => 0,
+            'forPangkatCases' => 0,
+            'settledResolvedCases' => 0,
+            'cfaCases' => 0,
+            'closedStageCases' => 0,
 
             'assignedCases' => 0,
             'scheduledHearings' => 0,
@@ -47,9 +57,6 @@ class DashboardController extends Controller
         |--------------------------------------------------------------------------
         | Barangay Captain / Secretary
         |--------------------------------------------------------------------------
-        |
-        | These roles need an overall operational view.
-        |
         */
 
         if (
@@ -67,58 +74,126 @@ class DashboardController extends Controller
 
             /*
             |--------------------------------------------------------------------------
-            | Case Status Counts
+            | Current Stage Counts
             |--------------------------------------------------------------------------
-            |
-            | Fetch every status total in one query instead of issuing a separate
-            | COUNT query for every dashboard card.
-            |
             */
 
-            $statusCounts =
+            $stageCounts =
                 BlotterCase::query()
-                    ->select('status')
-                    ->selectRaw('COUNT(*) AS total')
-                    ->groupBy('status')
-                    ->pluck('total', 'status');
+                    ->select('case_stage')
+                    ->selectRaw(
+                        'COUNT(*) AS total'
+                    )
+                    ->groupBy('case_stage')
+                    ->pluck(
+                        'total',
+                        'case_stage'
+                    );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Record Status Counts
+            |--------------------------------------------------------------------------
+            */
+
+            $recordStatusCounts =
+                BlotterCase::query()
+                    ->select('record_status')
+                    ->selectRaw(
+                        'COUNT(*) AS total'
+                    )
+                    ->groupBy('record_status')
+                    ->pluck(
+                        'total',
+                        'record_status'
+                    );
 
             $data['totalCases'] =
-                $statusCounts->sum();
+                (int) $recordStatusCounts->sum();
 
-            $data['pendingCases'] =
-                $statusCounts[
-                    CaseStatus::Pending->value
-                ] ?? 0;
+            /*
+             * Overall Record Status
+             */
 
-            $data['underInvestigationCases'] =
-                $statusCounts[
-                    CaseStatus::UnderInvestigation->value
-                ] ?? 0;
+            $data['openCases'] =
+                (int) (
+                    $recordStatusCounts[
+                        RecordStatus::Open->value
+                    ] ?? 0
+                );
+
+            $data['resolvedRecordCases'] =
+                (int) (
+                    $recordStatusCounts[
+                        RecordStatus::Resolved->value
+                    ] ?? 0
+                );
+
+            $data['closedRecordCases'] =
+                (int) (
+                    $recordStatusCounts[
+                        RecordStatus::Closed->value
+                    ] ?? 0
+                );
+
+            /*
+             * Current Stage
+             */
+
+            $data['newCases'] =
+                (int) (
+                    $stageCounts[
+                        CaseStage::New->value
+                    ] ?? 0
+                );
+
+            $data['underAssessmentCases'] =
+                (int) (
+                    $stageCounts[
+                        CaseStage::UnderAssessment->value
+                    ] ?? 0
+                );
 
             $data['forMediationCases'] =
-                $statusCounts[
-                    CaseStatus::ForMediation->value
-                ] ?? 0;
+                (int) (
+                    $stageCounts[
+                        CaseStage::ForMediation->value
+                    ] ?? 0
+                );
 
-            $data['settledCases'] =
-                $statusCounts[
-                    CaseStatus::Settled->value
-                ] ?? 0;
+            $data['forPangkatCases'] =
+                (int) (
+                    $stageCounts[
+                        CaseStage::ForPangkatConciliation->value
+                    ] ?? 0
+                );
 
-            $data['resolvedCases'] =
-                $statusCounts[
-                    CaseStatus::Resolved->value
-                ] ?? 0;
+            $data['settledResolvedCases'] =
+                (int) (
+                    $stageCounts[
+                        CaseStage::SettledResolved->value
+                    ] ?? 0
+                );
 
-            $data['referredCases'] =
-                $statusCounts[
-                    CaseStatus::Referred->value
-                ] ?? 0;
+            $data['cfaCases'] =
+                (int) (
+                    $stageCounts[
+                        CaseStage::ForFurtherActionCfa->value
+                    ] ?? 0
+                );
 
-            $data['dismissedCases'] =
-                $statusCounts[
-                    CaseStatus::Dismissed->value
-                ] ?? 0;
+            $data['closedStageCases'] =
+                (int) (
+                    $stageCounts[
+                        CaseStage::Closed->value
+                    ] ?? 0
+                );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Scheduled Hearings
+            |--------------------------------------------------------------------------
+            */
 
             $data['scheduledHearings'] =
                 MediationSession::where(
@@ -126,13 +201,20 @@ class DashboardController extends Controller
                     'Scheduled'
                 )->count();
 
+            /*
+            |--------------------------------------------------------------------------
+            | Recent Cases
+            |--------------------------------------------------------------------------
+            */
+
             $data['recentCases'] =
                 BlotterCase::query()
                     ->select([
                         'id',
                         'reference_number',
                         'incident_type_id',
-                        'status',
+                        'case_stage',
+                        'record_status',
                         'reported_at',
                     ])
                     ->with([
@@ -143,6 +225,12 @@ class DashboardController extends Controller
                     ->latest('reported_at')
                     ->limit(5)
                     ->get();
+
+            /*
+            |--------------------------------------------------------------------------
+            | Upcoming Hearings
+            |--------------------------------------------------------------------------
+            */
 
             $data['upcomingHearings'] =
                 MediationSession::query()
@@ -194,25 +282,67 @@ class DashboardController extends Controller
             $data['totalResidents'] =
                 Resident::active()->count();
 
-            $statusCounts =
+            $stageCounts =
                 BlotterCase::query()
-                    ->select('status')
-                    ->selectRaw('COUNT(*) AS total')
-                    ->groupBy('status')
-                    ->pluck('total', 'status');
+                    ->select('case_stage')
+                    ->selectRaw(
+                        'COUNT(*) AS total'
+                    )
+                    ->groupBy('case_stage')
+                    ->pluck(
+                        'total',
+                        'case_stage'
+                    );
+
+            $recordStatusCounts =
+                BlotterCase::query()
+                    ->select('record_status')
+                    ->selectRaw(
+                        'COUNT(*) AS total'
+                    )
+                    ->groupBy('record_status')
+                    ->pluck(
+                        'total',
+                        'record_status'
+                    );
 
             $data['totalCases'] =
-                $statusCounts->sum();
+                (int) $recordStatusCounts->sum();
 
-            $data['pendingCases'] =
-                $statusCounts[
-                    CaseStatus::Pending->value
-                ] ?? 0;
+            $data['openCases'] =
+                (int) (
+                    $recordStatusCounts[
+                        RecordStatus::Open->value
+                    ] ?? 0
+                );
 
-            $data['underInvestigationCases'] =
-                $statusCounts[
-                    CaseStatus::UnderInvestigation->value
-                ] ?? 0;
+            $data['resolvedRecordCases'] =
+                (int) (
+                    $recordStatusCounts[
+                        RecordStatus::Resolved->value
+                    ] ?? 0
+                );
+
+            $data['closedRecordCases'] =
+                (int) (
+                    $recordStatusCounts[
+                        RecordStatus::Closed->value
+                    ] ?? 0
+                );
+
+            $data['newCases'] =
+                (int) (
+                    $stageCounts[
+                        CaseStage::New->value
+                    ] ?? 0
+                );
+
+            $data['underAssessmentCases'] =
+                (int) (
+                    $stageCounts[
+                        CaseStage::UnderAssessment->value
+                    ] ?? 0
+                );
 
             $data['recentCases'] =
                 BlotterCase::query()
@@ -220,7 +350,8 @@ class DashboardController extends Controller
                         'id',
                         'reference_number',
                         'incident_type_id',
-                        'status',
+                        'case_stage',
+                        'record_status',
                         'reported_at',
                     ])
                     ->with([
@@ -228,9 +359,7 @@ class DashboardController extends Controller
                         'complainants:id,blotter_case_id,first_name,last_name',
                         'respondents:id,blotter_case_id,first_name,last_name',
                     ])
-                    ->latest(
-                        'reported_at'
-                    )
+                    ->latest('reported_at')
                     ->limit(5)
                     ->get();
 
@@ -244,48 +373,80 @@ class DashboardController extends Controller
         |--------------------------------------------------------------------------
         | Councilor Dashboard
         |--------------------------------------------------------------------------
-        |
-        | Councilors should only see cases
-        | currently assigned to them.
-        |
         */
 
         if ($role === 'councilor') {
             $assignedQuery =
-                BlotterCase::whereHas(
-                    'assignments',
-                    function ($query) use ($user) {
+                BlotterCase::query()
+                    ->whereHas(
+                        'assignments',
+                        function ($query) use ($user) {
+                            $query
+                                ->where(
+                                    'assigned_to',
+                                    $user->id
+                                )
+                                ->whereNull(
+                                    'completed_at'
+                                );
+                        }
+                    );
 
-                        $query
-                            ->where(
-                                'assigned_to',
-                                $user->id
-                            )
-                            ->whereNull(
-                                'completed_at'
-                            );
-                    }
-                );
-
-            $assignedStatusCounts =
+            $assignedStageCounts =
                 (clone $assignedQuery)
-                    ->select('status')
-                    ->selectRaw('COUNT(*) AS total')
-                    ->groupBy('status')
-                    ->pluck('total', 'status');
+                    ->select(
+                        'blotter_cases.case_stage'
+                    )
+                    ->selectRaw(
+                        'COUNT(*) AS total'
+                    )
+                    ->groupBy(
+                        'blotter_cases.case_stage'
+                    )
+                    ->pluck(
+                        'total',
+                        'blotter_cases.case_stage'
+                    );
+
+            $assignedRecordCounts =
+                (clone $assignedQuery)
+                    ->select(
+                        'blotter_cases.record_status'
+                    )
+                    ->selectRaw(
+                        'COUNT(*) AS total'
+                    )
+                    ->groupBy(
+                        'blotter_cases.record_status'
+                    )
+                    ->pluck(
+                        'total',
+                        'blotter_cases.record_status'
+                    );
 
             $data['assignedCases'] =
-                $assignedStatusCounts->sum();
+                (int) $assignedRecordCounts->sum();
 
-            $data['underInvestigationCases'] =
-                $assignedStatusCounts[
-                    CaseStatus::UnderInvestigation->value
-                ] ?? 0;
+            $data['openCases'] =
+                (int) (
+                    $assignedRecordCounts[
+                        RecordStatus::Open->value
+                    ] ?? 0
+                );
 
-            $data['pendingCases'] =
-                $assignedStatusCounts[
-                    CaseStatus::Pending->value
-                ] ?? 0;
+            $data['newCases'] =
+                (int) (
+                    $assignedStageCounts[
+                        CaseStage::New->value
+                    ] ?? 0
+                );
+
+            $data['underAssessmentCases'] =
+                (int) (
+                    $assignedStageCounts[
+                        CaseStage::UnderAssessment->value
+                    ] ?? 0
+                );
 
             $data['recentCases'] =
                 (clone $assignedQuery)
@@ -293,7 +454,8 @@ class DashboardController extends Controller
                         'blotter_cases.id',
                         'blotter_cases.reference_number',
                         'blotter_cases.incident_type_id',
-                        'blotter_cases.status',
+                        'blotter_cases.case_stage',
+                        'blotter_cases.record_status',
                         'blotter_cases.reported_at',
                     ])
                     ->with([
@@ -317,39 +479,76 @@ class DashboardController extends Controller
         |--------------------------------------------------------------------------
         | Lupon Dashboard
         |--------------------------------------------------------------------------
-        |
-        | Lupon members only see mediation cases
-        | and hearings assigned to their account.
-        |
         */
 
         if ($role === 'lupon') {
             $mediationCaseQuery =
-                BlotterCase::whereHas(
-                    'mediationSessions',
-                    function ($query) use ($user) {
+                BlotterCase::query()
+                    ->whereHas(
+                        'mediationSessions',
+                        function ($query) use ($user) {
+                            $query->where(
+                                'lupon_member_id',
+                                $user->id
+                            );
+                        }
+                    );
 
-                        $query->where(
-                            'lupon_member_id',
-                            $user->id
-                        );
-                    }
-                );
-
-            $mediationStatusCounts =
+            $mediationStageCounts =
                 (clone $mediationCaseQuery)
-                    ->select('status')
-                    ->selectRaw('COUNT(*) AS total')
-                    ->groupBy('status')
-                    ->pluck('total', 'status');
+                    ->select(
+                        'blotter_cases.case_stage'
+                    )
+                    ->selectRaw(
+                        'COUNT(*) AS total'
+                    )
+                    ->groupBy(
+                        'blotter_cases.case_stage'
+                    )
+                    ->pluck(
+                        'total',
+                        'blotter_cases.case_stage'
+                    );
+
+            $mediationRecordCounts =
+                (clone $mediationCaseQuery)
+                    ->select(
+                        'blotter_cases.record_status'
+                    )
+                    ->selectRaw(
+                        'COUNT(*) AS total'
+                    )
+                    ->groupBy(
+                        'blotter_cases.record_status'
+                    )
+                    ->pluck(
+                        'total',
+                        'blotter_cases.record_status'
+                    );
 
             $data['assignedCases'] =
-                $mediationStatusCounts->sum();
+                (int) $mediationRecordCounts->sum();
+
+            $data['openCases'] =
+                (int) (
+                    $mediationRecordCounts[
+                        RecordStatus::Open->value
+                    ] ?? 0
+                );
 
             $data['forMediationCases'] =
-                $mediationStatusCounts[
-                    CaseStatus::ForMediation->value
-                ] ?? 0;
+                (int) (
+                    $mediationStageCounts[
+                        CaseStage::ForMediation->value
+                    ] ?? 0
+                );
+
+            $data['forPangkatCases'] =
+                (int) (
+                    $mediationStageCounts[
+                        CaseStage::ForPangkatConciliation->value
+                    ] ?? 0
+                );
 
             $data['scheduledHearings'] =
                 MediationSession::where(
@@ -368,7 +567,8 @@ class DashboardController extends Controller
                         'blotter_cases.id',
                         'blotter_cases.reference_number',
                         'blotter_cases.incident_type_id',
-                        'blotter_cases.status',
+                        'blotter_cases.case_stage',
+                        'blotter_cases.record_status',
                         'blotter_cases.reported_at',
                     ])
                     ->with([

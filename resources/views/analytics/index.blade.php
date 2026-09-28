@@ -63,22 +63,50 @@
 
                 <div class="col-md-2">
                     <label class="form-label">
-                        Status
+                        Current Stage
                     </label>
 
                     <select
-                        name="status"
+                        name="case_stage"
                         class="form-select"
                     >
                         <option value="">
-                            All Statuses
+                            All Stages
                         </option>
 
-                        @foreach($statuses as $status)
+                        @foreach($caseStages as $stage)
+                            <option
+                                value="{{ $stage->value }}"
+                                @selected(
+                                    request('case_stage')
+                                    ===
+                                    $stage->value
+                                )
+                            >
+                                {{ $stage->value }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div class="col-md-2">
+                    <label class="form-label">
+                        Record Status
+                    </label>
+
+                    <select
+                        name="record_status"
+                        class="form-select"
+                    >
+                        <option value="">
+                            All Record Statuses
+                        </option>
+
+                        @foreach($recordStatuses as $status)
                             <option
                                 value="{{ $status->value }}"
                                 @selected(
-                                    request('status')
+                                    request('record_status')
                                     ===
                                     $status->value
                                 )
@@ -268,7 +296,7 @@
         <div class="card h-100">
             <div class="card-body">
                 <div class="text-muted small mb-2">
-                    Closed Cases
+                    Closed Records
                 </div>
 
                 <div class="fs-3 fw-semibold">
@@ -290,7 +318,7 @@
                 </div>
 
                 <div class="text-muted small mt-1">
-                    Settled ÷ closed cases
+                    Settled/Resolved ÷ completed records
                 </div>
             </div>
         </div>
@@ -340,7 +368,7 @@
     <div class="col-xl-4">
         <div class="card h-100">
             <div class="card-header">
-                <strong>Case Status Distribution</strong>
+                <strong>Record Status Distribution</strong>
             </div>
 
             <div class="card-body">
@@ -436,7 +464,8 @@
                     <th>Reference</th>
                     <th>Incident Type</th>
                     <th>Date</th>
-                    <th>Status</th>
+                    <th>Current Stage</th>
+                    <th>Record Status</th>
                     <th>Assigned Councilor</th>
                 </tr>
             </thead>
@@ -466,7 +495,19 @@
                         </td>
 
                         <td>
-                            {{ $case->status->value ?? $case->status }}
+                            <span
+                                class="badge {{ $case->case_stage?->badgeClass() ?? 'text-bg-secondary' }}"
+                            >
+                                {{ $case->case_stage?->value ?? 'New' }}
+                            </span>
+                        </td>
+
+                        <td>
+                            <span
+                                class="badge {{ $case->record_status?->badgeClass() ?? 'text-bg-primary' }}"
+                            >
+                                {{ $case->record_status?->value ?? 'Open' }}
+                            </span>
                         </td>
 
                         <td>
@@ -482,7 +523,7 @@
                 @empty
                     <tr>
                         <td
-                            colspan="5"
+                            colspan="6"
                             class="text-center text-muted py-4"
                         >
                             No cases match the selected filters.

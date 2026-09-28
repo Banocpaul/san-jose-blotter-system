@@ -2,7 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\CaseStatus;
+use App\Enums\CaseStage;
+use App\Enums\RecordStatus;
 use App\Models\BlotterCase;
 use App\Models\IncidentType;
 use App\Models\User;
@@ -21,11 +22,21 @@ class AnalyticsController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $statusValues = collect(
-            CaseStatus::cases()
+        $caseStageValues = collect(
+            CaseStage::cases()
         )
             ->map(
-                fn (CaseStatus $status) =>
+                fn (CaseStage $stage) =>
+                    $stage->value
+            )
+            ->values()
+            ->all();
+
+        $recordStatusValues = collect(
+            RecordStatus::cases()
+        )
+            ->map(
+                fn (RecordStatus $status) =>
                     $status->value
             )
             ->values()
@@ -58,10 +69,17 @@ class AnalyticsController extends Controller
                 'after_or_equal:date_from',
             ],
 
-            'status' => [
+            'case_stage' => [
                 'nullable',
                 Rule::in(
-                    $statusValues
+                    $caseStageValues
+                ),
+            ],
+
+            'record_status' => [
+                'nullable',
+                Rule::in(
+                    $recordStatusValues
                 ),
             ],
 
@@ -102,80 +120,85 @@ class AnalyticsController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | KPI + Status Distribution
+        | KPI + Record Status Distribution
         |--------------------------------------------------------------------------
-        |
-        | One grouped query now supplies:
-        | - total cases
-        | - open cases
-        | - closed cases
-        | - settled cases
-        | - status distribution
-        |
-        | This replaces many individual COUNT queries.
-        |
         */
 
-        $statusCounts =
+        $recordStatusCounts =
             (clone $query)
-                ->select('blotter_cases.status')
-                ->selectRaw('COUNT(*) AS total')
-                ->groupBy('blotter_cases.status')
+                ->select(
+                    'blotter_cases.record_status'
+                )
+                ->selectRaw(
+                    'COUNT(*) AS total'
+                )
+                ->groupBy(
+                    'blotter_cases.record_status'
+                )
                 ->pluck(
                     'total',
-                    'blotter_cases.status'
+                    'blotter_cases.record_status'
+                );
+
+        $stageCounts =
+            (clone $query)
+                ->select(
+                    'blotter_cases.case_stage'
+                )
+                ->selectRaw(
+                    'COUNT(*) AS total'
+                )
+                ->groupBy(
+                    'blotter_cases.case_stage'
+                )
+                ->pluck(
+                    'total',
+                    'blotter_cases.case_stage'
                 );
 
         $totalCases =
-            (int) $statusCounts->sum();
-
-        $openStatuses = [
-            CaseStatus::Pending->value,
-            CaseStatus::UnderInvestigation->value,
-            CaseStatus::ForMediation->value,
-        ];
-
-        $closedStatuses = [
-            CaseStatus::Settled->value,
-            CaseStatus::Resolved->value,
-            CaseStatus::Referred->value,
-            CaseStatus::Dismissed->value,
-        ];
+            (int) $recordStatusCounts->sum();
 
         $openCases =
-            collect($openStatuses)
-                ->sum(
-                    fn (string $status) =>
-                        (int) (
-                            $statusCounts[$status]
-                            ?? 0
-                        )
-                );
-
-        $closedCases =
-            collect($closedStatuses)
-                ->sum(
-                    fn (string $status) =>
-                        (int) (
-                            $statusCounts[$status]
-                            ?? 0
-                        )
-                );
-
-        $settledCases =
             (int) (
-                $statusCounts[
-                    CaseStatus::Settled->value
+                $recordStatusCounts[
+                    RecordStatus::Open->value
                 ] ?? 0
             );
 
+        $resolvedCases =
+            (int) (
+                $recordStatusCounts[
+                    RecordStatus::Resolved->value
+                ] ?? 0
+            );
+
+        $closedCases =
+            (int) (
+                $recordStatusCounts[
+                    RecordStatus::Closed->value
+                ] ?? 0
+            );
+
+        $settledCases =
+            (int) (
+                $stageCounts[
+                    CaseStage::SettledResolved->value
+                ] ?? 0
+            );
+
+        $completedCases =
+            $resolvedCases
+            +
+            $closedCases;
+
         $settlementRate =
-            $closedCases > 0
+            $completedCases > 0
                 ? round(
                     (
                         $settledCases
                         /
-                        $closedCases
+                        $completedCases
                     ) * 100,
                     1
                 )
@@ -225,29 +248,25 @@ class AnalyticsController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Status Distribution
+        | Record Status Distribution
         |--------------------------------------------------------------------------
-        |
-        | Reuse the grouped status query above instead of performing one COUNT
-        | query for every status.
-        |
         */
 
         $statusDistribution =
             collect(
-                CaseStatus::cases()
+                RecordStatus::cases()
             )
                 ->map(
                     function (
-                        CaseStatus $status
-                    ) use ($statusCounts) {
+                        RecordStatus $status
+                    ) use ($recordStatusCounts) {
                         return [
                             'label' =>
                                 $status->value,
 
                             'total' =>
                                 (int) (
-                                    $statusCounts[
+                                    $recordStatusCounts[
                                         $status->value
                                     ] ?? 0
                                 ),
@@ -587,8 +606,11 @@ class AnalyticsController extends Controller
                 'incidentTypes' =>
                     $incidentTypes,
 
-                'statuses' =>
-                    CaseStatus::cases(),
+                'caseStages' =>
+                    CaseStage::cases(),
+
+                'recordStatuses' =>
+                    RecordStatus::cases(),
 
                 'sitios' =>
                     $sitios,
@@ -674,12 +696,23 @@ class AnalyticsController extends Controller
 
         if (
             ! empty(
-                $filters['status']
+                $filters['case_stage']
             )
         ) {
             $query->where(
-                'status',
-                $filters['status']
+                'case_stage',
+                $filters['case_stage']
+            );
+        }
+
+        if (
+            ! empty(
+                $filters['record_status']
+            )
+        ) {
+            $query->where(
+                'record_status',
+                $filters['record_status']
             );
         }
 

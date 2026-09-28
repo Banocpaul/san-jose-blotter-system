@@ -46,9 +46,9 @@
     <div class="col-12 col-sm-6 col-xl-3">
         <div class="card shadow-sm h-100 border-0">
             <div class="card-body">
-                <div class="text-muted small mb-2">Active Cases</div>
+                <div class="text-muted small mb-2">Open Records</div>
                 <div class="fs-3 fw-bold text-primary">
-                    {{ number_format((int) ($summary->active_cases ?? 0)) }}
+                    {{ number_format((int) ($summary->open_cases ?? 0)) }}
                 </div>
             </div>
         </div>
@@ -57,9 +57,9 @@
     <div class="col-12 col-sm-6 col-xl-3">
         <div class="card shadow-sm h-100 border-0">
             <div class="card-body">
-                <div class="text-muted small mb-2">Settled / Resolved</div>
+                <div class="text-muted small mb-2">Resolved Records</div>
                 <div class="fs-3 fw-bold text-success">
-                    {{ number_format((int) ($summary->settled_cases ?? 0)) }}
+                    {{ number_format((int) ($summary->resolved_cases ?? 0)) }}
                 </div>
             </div>
         </div>
@@ -68,9 +68,9 @@
     <div class="col-12 col-sm-6 col-xl-3">
         <div class="card shadow-sm h-100 border-0">
             <div class="card-body">
-                <div class="text-muted small mb-2">Further Action / CFA</div>
+                <div class="text-muted small mb-2">Closed Records</div>
                 <div class="fs-3 fw-bold text-dark">
-                    {{ number_format((int) ($summary->cfa_cases ?? 0)) }}
+                    {{ number_format((int) ($summary->closed_cases ?? 0)) }}
                 </div>
             </div>
         </div>
@@ -126,13 +126,13 @@
             </div>
 
             <div class="col-12 col-md-6 col-lg-2">
-                <label class="form-label">Status</label>
-                <select name="status" class="form-select">
-                    <option value="">All Statuses</option>
-                    @foreach($caseStatuses as $status)
+                <label class="form-label">Record Status</label>
+                <select name="record_status" class="form-select">
+                    <option value="">All Record Statuses</option>
+                    @foreach($recordStatuses as $status)
                         <option
                             value="{{ $status->value }}"
-                            @selected(request('status') === $status->value)
+                            @selected(request('record_status') === $status->value)
                         >
                             {{ $status->value }}
                         </option>
@@ -193,16 +193,14 @@
                     <th>Incident Type</th>
                     <th>Complainant</th>
                     <th>Respondent</th>
-                    <th>Case Stage</th>
-                    <th>Status</th>
+                    <th>Current Stage</th>
+                    <th>Record Status</th>
                     <th>Location</th>
                 </tr>
             </thead>
             <tbody>
                 @forelse($cases as $case)
-                    @php
-                        $statusValue = $case->status?->value ?? (string) $case->status;
-                    @endphp
+
                     <tr>
                         <td class="text-nowrap fw-semibold">
                             {{ $case->reference_number }}
@@ -249,7 +247,9 @@
                         </td>
 
                         <td>
-                            {{ $statusValue ?: '—' }}
+                            <span class="badge {{ $case->record_status?->badgeClass() ?? 'text-bg-primary' }}">
+                                {{ $case->record_status?->value ?? 'Open' }}
+                            </span>
                         </td>
 
                         <td style="min-width: 220px; white-space: normal;">

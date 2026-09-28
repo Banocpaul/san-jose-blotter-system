@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\CaseStage;
 use App\Enums\CaseStatus;
+use App\Enums\RecordStatus;
 use App\Services\CaseReferenceService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -23,6 +24,7 @@ class BlotterCase extends Model
         'remarks',
         'status',
         'case_stage',
+        'record_status',
         'created_by',
         'reported_at',
         'closed_at',
@@ -36,24 +38,64 @@ class BlotterCase extends Model
             'closed_at' => 'datetime',
             'status' => CaseStatus::class,
             'case_stage' => CaseStage::class,
+            'record_status' => RecordStatus::class,
         ];
     }
 
     protected static function booted(): void
     {
         static::creating(function (BlotterCase $case) {
+
+            /*
+            |--------------------------------------------------------------------------
+            | Generate Case Reference
+            |--------------------------------------------------------------------------
+            */
+
             if (empty($case->reference_number)) {
                 $case->reference_number =
                     app(CaseReferenceService::class)->generate();
             }
 
+            /*
+            |--------------------------------------------------------------------------
+            | Legacy Status
+            |--------------------------------------------------------------------------
+            |
+            | Kept temporarily while the rest of the system is being migrated
+            | to case_stage + record_status.
+            |
+            */
+
             if (empty($case->status)) {
                 $case->status = CaseStatus::Pending;
             }
 
+            /*
+            |--------------------------------------------------------------------------
+            | Current Case Stage
+            |--------------------------------------------------------------------------
+            */
+
             if (empty($case->case_stage)) {
                 $case->case_stage = CaseStage::New;
             }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Record Status
+            |--------------------------------------------------------------------------
+            */
+
+            if (empty($case->record_status)) {
+                $case->record_status = RecordStatus::Open;
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Reported Timestamp
+            |--------------------------------------------------------------------------
+            */
 
             if (empty($case->reported_at)) {
                 $case->reported_at = now();
@@ -67,57 +109,129 @@ class BlotterCase extends Model
     |--------------------------------------------------------------------------
     */
 
-    public function scopeVisibleTo(Builder $query, User $user): Builder
-    {
+    public function scopeVisibleTo(
+        Builder $query,
+        User $user
+    ): Builder {
         $role = $user->role?->slug;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Councilor Visibility
+        |--------------------------------------------------------------------------
+        |
+        | Councilors may only see cases currently assigned to them.
+        |
+        */
 
         if ($role === 'councilor') {
             return $query->whereHas(
                 'assignments',
-                fn (Builder $assignment) => $assignment
-                    ->where('assigned_to', $user->id)
-                    ->whereNull('completed_at')
+                fn (Builder $assignment) =>
+                    $assignment
+                        ->where(
+                            'assigned_to',
+                            $user->id
+                        )
+                        ->whereNull(
+                            'completed_at'
+                        )
             );
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Lupon Visibility
+        |--------------------------------------------------------------------------
+        |
+        | Lupon members may only see cases where they have a mediation session.
+        |
+        */
 
         if ($role === 'lupon') {
             return $query->whereHas(
                 'mediationSessions',
-                fn (Builder $session) => $session
-                    ->where('lupon_member_id', $user->id)
+                fn (Builder $session) =>
+                    $session->where(
+                        'lupon_member_id',
+                        $user->id
+                    )
             );
         }
 
         return $query;
     }
 
-    public function scopeSearchCase(Builder $query, ?string $search): Builder
-    {
-        $search = trim((string) $search);
+    public function scopeSearchCase(
+        Builder $query,
+        ?string $search
+    ): Builder {
+        $search = trim(
+            (string) $search
+        );
 
         if ($search === '') {
             return $query;
         }
 
-        return $query->where(function (Builder $caseQuery) use ($search) {
-            $caseQuery
-                ->where('reference_number', 'like', "%{$search}%")
-                ->orWhere('location', 'like', "%{$search}%")
-                ->orWhereHas(
-                    'complainants',
-                    fn (Builder $person) => $person
-                        ->where('first_name', 'like', "%{$search}%")
-                        ->orWhere('middle_name', 'like', "%{$search}%")
-                        ->orWhere('last_name', 'like', "%{$search}%")
-                )
-                ->orWhereHas(
-                    'respondents',
-                    fn (Builder $person) => $person
-                        ->where('first_name', 'like', "%{$search}%")
-                        ->orWhere('middle_name', 'like', "%{$search}%")
-                        ->orWhere('last_name', 'like', "%{$search}%")
-                );
-        });
+        return $query->where(
+            function (
+                Builder $caseQuery
+            ) use ($search) {
+
+                $caseQuery
+                    ->where(
+                        'reference_number',
+                        'like',
+                        "%{$search}%"
+                    )
+                    ->orWhere(
+                        'location',
+                        'like',
+                        "%{$search}%"
+                    )
+                    ->orWhereHas(
+                        'complainants',
+                        fn (Builder $person) =>
+                            $person
+                                ->where(
+                                    'first_name',
+                                    'like',
+                                    "%{$search}%"
+                                )
+                                ->orWhere(
+                                    'middle_name',
+                                    'like',
+                                    "%{$search}%"
+                                )
+                                ->orWhere(
+                                    'last_name',
+                                    'like',
+                                    "%{$search}%"
+                                )
+                    )
+                    ->orWhereHas(
+                        'respondents',
+                        fn (Builder $person) =>
+                            $person
+                                ->where(
+                                    'first_name',
+                                    'like',
+                                    "%{$search}%"
+                                )
+                                ->orWhere(
+                                    'middle_name',
+                                    'like',
+                                    "%{$search}%"
+                                )
+                                ->orWhere(
+                                    'last_name',
+                                    'like',
+                                    "%{$search}%"
+                                )
+                    );
+            }
+        );
     }
 
     /*
@@ -180,7 +294,9 @@ class BlotterCase extends Model
             CaseAssignment::class,
             'blotter_case_id'
         )
-            ->whereNull('completed_at')
+            ->whereNull(
+                'completed_at'
+            )
             ->latestOfMany();
     }
 
@@ -205,7 +321,8 @@ class BlotterCase extends Model
         return $this->hasOne(
             MediationSession::class,
             'blotter_case_id'
-        )->latestOfMany();
+        )
+            ->latestOfMany();
     }
 
     public function caseResolution()
