@@ -1,14 +1,15 @@
 @extends('layouts.app')
 
-@section('title', 'New Blotter Case')
+@section('title', 'New Blotter Record')
+@section('page-title', 'New Blotter Record')
 
 @section('content')
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h3 class="mb-1">New Blotter Case</h3>
+        <h3 class="mb-1">New Blotter Record</h3>
         <div class="text-muted">
-            Select the parties from the People Directory, then record the incident details.
+            Search and select existing people from the People Directory, then record the incident details.
         </div>
     </div>
 
@@ -31,9 +32,33 @@
 <form method="POST" action="{{ route('blotter.store') }}">
     @csrf
 
+    <div class="alert alert-info border-0 mb-4">
+
+        <div class="d-flex gap-3 align-items-start">
+
+            <i class="bi bi-people mt-1"></i>
+
+            <div>
+
+                <strong>
+                    Reuse existing People Directory records.
+                </strong>
+
+                <div class="small mt-1">
+                    Search for each person before adding a new one.
+                    The same person cannot be selected as both complainant
+                    and respondent.
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
     <div class="card shadow-sm mb-4">
         <div class="card-header bg-white">
-            <strong>People Involved</strong>
+            <strong>People Involved — People Directory</strong>
         </div>
 
         <div class="card-body">
@@ -168,7 +193,7 @@
 
     <div class="d-flex gap-2 mb-5">
         <button type="submit" class="btn btn-primary">
-            Save Blotter Case
+            Save Blotter Record
         </button>
 
         <a href="{{ route('blotter.index') }}" class="btn btn-outline-secondary">

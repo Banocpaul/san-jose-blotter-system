@@ -68,13 +68,14 @@
         @if($helpText)
             {{ $helpText }}
         @else
-            Select an existing person from the People Directory.
-            If the person is not listed,
+            Search and select an existing person from the People Directory.
+            The same person cannot be used as both complainant and respondent.
+            If no matching record exists,
             <a
                 href="{{ route('residents.create') }}"
                 target="_blank"
                 rel="noopener"
-            >add them to the People Directory first</a>.
+            >add the person to the People Directory first</a>.
         @endif
     </div>
 </div>

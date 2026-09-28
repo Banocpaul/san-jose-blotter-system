@@ -2,6 +2,35 @@
     $person = $resident ?? null;
 @endphp
 
+
+@if(! $person)
+
+    <div class="alert alert-info border-0 mb-4">
+
+        <div class="d-flex gap-3 align-items-start">
+
+            <i class="bi bi-search mt-1"></i>
+
+            <div>
+
+                <strong>
+                    Check the People Directory first.
+                </strong>
+
+                <div class="small mt-1">
+                    Create a new person only when no matching record already exists.
+                    The system also checks matching identity details before saving
+                    to reduce duplicate person records.
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+@endif
+
 <div class="card shadow-sm mb-4">
     <div class="card-header bg-white">
         <strong>Personal Information</strong>
@@ -225,6 +254,10 @@
                     <option value="1" @selected(old('is_active', $person?->is_active ?? true) == true)>Active</option>
                     <option value="0" @selected(old('is_active', $person?->is_active ?? true) == false)>Inactive</option>
                 </select>
+                <div class="form-text">
+                    Inactive records remain part of the directory history but are
+                    not available for new blotter-party selection.
+                </div>
             </div>
         </div>
     </div>

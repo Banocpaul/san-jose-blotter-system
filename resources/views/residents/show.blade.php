@@ -173,20 +173,6 @@
             </div>
         </div>
 
-        <div class="card shadow-sm">
-            <div class="card-header bg-white"><strong>Archive Person</strong></div>
-            <div class="card-body">
-                <form
-                    method="POST"
-                    action="{{ route('residents.destroy', $resident) }}"
-                    onsubmit="return confirm('Archive this person record?');"
-                >
-                    @csrf
-                    @method('DELETE')
-                    <button type="submit" class="btn btn-outline-danger w-100">Archive Person</button>
-                </form>
-            </div>
-        </div>
     </div>
 </div>
 

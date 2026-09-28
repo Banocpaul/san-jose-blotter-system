@@ -13,19 +13,41 @@ class ResidentController extends Controller
 {
     public function index(Request $request)
     {
-        $status = $request->string('status')->toString() ?: 'active';
-        $classification = $request->string('classification')->toString();
+        $classification =
+            $request
+                ->string('classification')
+                ->toString();
 
-        $query = $status === 'archived'
-            ? Resident::onlyTrashed()
-            : Resident::query();
+        /*
+        |--------------------------------------------------------------------------
+        | Current People Directory
+        |--------------------------------------------------------------------------
+        |
+        | Archived / soft-deleted records are intentionally not exposed in the
+        | client-facing People Directory. The client requested View, Add and
+        | Edit only, with no Archive or Restore workflow.
+        |
+        */
+
+        $query = Resident::query();
 
         if ($request->filled('search')) {
-            $query->search((string) $request->input('search'));
+            $query->search(
+                (string) $request->input('search')
+            );
         }
 
-        if (in_array($classification, ['Resident', 'Non-Resident'], true)) {
-            $query->where('classification', $classification);
+        if (
+            in_array(
+                $classification,
+                ['Resident', 'Non-Resident'],
+                true
+            )
+        ) {
+            $query->where(
+                'classification',
+                $classification
+            );
         }
 
         $residents = $query
@@ -44,17 +66,18 @@ class ResidentController extends Controller
                 'purok',
                 'address_details',
                 'is_active',
-                'deleted_at',
             ])
             ->latest('id')
             ->paginate(20)
             ->withQueryString();
 
-        return view('residents.index', compact(
-            'residents',
-            'status',
-            'classification'
-        ));
+        return view(
+            'residents.index',
+            compact(
+                'residents',
+                'classification'
+            )
+        );
     }
 
 
@@ -203,56 +226,11 @@ class ResidentController extends Controller
             ->with('success', 'Person record updated successfully.');
     }
 
-    public function destroy(Resident $resident)
-    {
-        DB::transaction(function () use ($resident) {
-            $oldValues = $this->residentAuditSnapshot($resident);
-            $residentCode = $resident->resident_code;
-
-            $resident->delete();
-
-            AuditLogService::log(
-                action: 'archived',
-                module: 'People Directory',
-                description: "Person record {$residentCode} was archived.",
-                auditable: $resident,
-                oldValues: $oldValues,
-                newValues: [
-                    'archived' => true,
-                    'archived_at' => now()->toDateTimeString(),
-                ]
-            );
-        });
-
-        return redirect()
-            ->route('residents.index')
-            ->with('success', 'Person record archived successfully.');
-    }
-
-    public function restore(int $id)
-    {
-        $resident = Resident::onlyTrashed()->findOrFail($id);
-
-        DB::transaction(function () use ($resident) {
-            $oldValues = $this->residentAuditSnapshot($resident);
-
-            $resident->restore();
-            $resident->refresh();
-
-            AuditLogService::log(
-                action: 'restored',
-                module: 'People Directory',
-                description: "Person record {$resident->resident_code} was restored.",
-                auditable: $resident,
-                oldValues: $oldValues,
-                newValues: $this->residentAuditSnapshot($resident)
-            );
-        });
-
-        return redirect()
-            ->route('residents.index')
-            ->with('success', 'Person record restored successfully.');
-    }
+    /*
+    |--------------------------------------------------------------------------
+    | Audit Snapshot Helper
+    |--------------------------------------------------------------------------
+    */
 
     private function residentAuditSnapshot(Resident $resident): array
     {

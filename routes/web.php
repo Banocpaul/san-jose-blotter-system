@@ -258,39 +258,6 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | People Directory - Archive / Restore
-    |--------------------------------------------------------------------------
-    |
-    | Barangay Captain
-    | Secretary
-    |
-    */
-
-    Route::middleware(
-        'role:barangay_captain,secretary'
-    )->group(function () {
-
-
-        Route::delete(
-            '/residents/{resident}',
-            [ResidentController::class, 'destroy']
-        )->name(
-            'residents.destroy'
-        );
-
-
-        Route::patch(
-            '/residents/{id}/restore',
-            [ResidentController::class, 'restore']
-        )->name(
-            'residents.restore'
-        );
-
-    });
-
-
-    /*
-    |--------------------------------------------------------------------------
     | Case Management - Central Tracking
     |--------------------------------------------------------------------------
     |
