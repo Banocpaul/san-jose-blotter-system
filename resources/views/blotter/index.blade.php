@@ -1,38 +1,52 @@
 @extends('layouts.app')
 
 @section('title', 'Blotter Records')
+@section('page-title', 'Blotter Records')
 
 @section('content')
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
     <div>
         <h3 class="mb-1">Blotter Records</h3>
+
         <div class="text-muted">
-            Initial complaint and incident records linked to the People Directory.
+            Read-only registry of recorded complaints and incidents.
+            Case workflow changes are handled in Case Management.
         </div>
     </div>
 
-    <a href="{{ route('blotter.create') }}"
-       class="btn btn-primary">
-        <i class="bi bi-file-earmark-plus me-1"></i> New Blotter Case
-    </a>
+    <span class="badge text-bg-light border px-3 py-2">
+        <i class="bi bi-eye me-1"></i>
+        View Only
+    </span>
 </div>
 
+
 @if(session('success'))
+
     <div class="alert alert-success">
         {{ session('success') }}
     </div>
+
 @endif
+
 
 <div class="card shadow-sm">
 
     <div class="card-body">
 
-        <form method="GET"
-              action="{{ route('blotter.index') }}"
-              class="row g-2 mb-4">
+        <form
+            method="GET"
+            action="{{ route('blotter.index') }}"
+            class="row g-2 mb-4 align-items-end"
+        >
 
-            <div class="col-md-4">
+            <div class="col-12 col-lg-6">
+
+                <label class="form-label small text-muted">
+                    Search
+                </label>
+
                 <input
                     type="text"
                     name="search"
@@ -40,35 +54,15 @@
                     class="form-control"
                     placeholder="Case number, person, location..."
                 >
-            </div>
-
-            <div class="col-md-3">
-
-                <select name="status"
-                        class="form-select">
-
-                    <option value="">
-                        All Statuses
-                    </option>
-
-                    @foreach($statuses as $status)
-
-                        <option
-                            value="{{ $status->value }}"
-                            @selected(
-                                request('status') === $status->value
-                            )
-                        >
-                            {{ $status->value }}
-                        </option>
-
-                    @endforeach
-
-                </select>
 
             </div>
 
-            <div class="col-md-3">
+
+            <div class="col-12 col-md-6 col-lg-3">
+
+                <label class="form-label small text-muted">
+                    Incident Type
+                </label>
 
                 <select
                     name="incident_type_id"
@@ -96,148 +90,205 @@
 
             </div>
 
-            <div class="col-md-2 d-grid">
+
+            <div class="col-6 col-lg-2 d-grid">
 
                 <button
                     type="submit"
                     class="btn btn-outline-primary"
                 >
+                    <i class="bi bi-search me-1"></i>
                     Search
                 </button>
 
             </div>
 
+
+            <div class="col-6 col-lg-1 d-grid">
+
+                <a
+                    href="{{ route('blotter.index') }}"
+                    class="btn btn-outline-secondary"
+                >
+                    Clear
+                </a>
+
+            </div>
+
         </form>
+
 
         <div class="table-responsive">
 
-            <table class="table table-hover align-middle">
+            <table class="table table-hover align-middle mb-0">
 
                 <thead>
+
                     <tr>
                         <th>Reference</th>
                         <th>Incident</th>
                         <th>Complainant</th>
                         <th>Respondent</th>
                         <th>Date</th>
-                        <th>Status</th>
-                        <th>Actions</th>
+                        <th>Current Stage</th>
+                        <th>Case Status</th>
+                        <th class="text-end">Action</th>
                     </tr>
+
                 </thead>
+
 
                 <tbody>
 
-                @forelse($cases as $case)
+                    @forelse($cases as $case)
 
-                    <tr>
+                        @php
+                            $caseStage = $case->case_stage;
+                            $recordStatus = $case->record_status;
 
-                        <td>
-                            <strong>
-                                {{ $case->reference_number }}
-                            </strong>
-                        </td>
+                            $stageLabel =
+                                $caseStage instanceof \App\Enums\CaseStage
+                                    ? $caseStage->value
+                                    : ($caseStage ?? 'New');
 
-                        <td>
-                            {{ $case->incidentType?->name ?? '—' }}
-                        </td>
+                            $stageClass =
+                                $caseStage instanceof \App\Enums\CaseStage
+                                    ? $caseStage->badgeClass()
+                                    : 'text-bg-secondary';
 
-                        <td>
+                            $recordStatusLabel =
+                                $recordStatus instanceof \App\Enums\RecordStatus
+                                    ? $recordStatus->value
+                                    : ($recordStatus ?? 'Open');
 
-                            @forelse($case->complainants as $person)
+                            $recordStatusClass =
+                                $recordStatus instanceof \App\Enums\RecordStatus
+                                    ? $recordStatus->badgeClass()
+                                    : 'text-bg-primary';
+                        @endphp
 
-                                <div>
-                                    {{ $person->first_name }}
-                                    {{ $person->middle_name }}
-                                    {{ $person->last_name }}
-                                    {{ $person->suffix }}
-                                </div>
 
-                            @empty
-                                —
-                            @endforelse
+                        <tr>
 
-                        </td>
+                            <td>
 
-                        <td>
+                                <strong>
+                                    {{ $case->reference_number }}
+                                </strong>
 
-                            @forelse($case->respondents as $person)
+                            </td>
 
-                                <div>
-                                    {{ $person->first_name }}
-                                    {{ $person->middle_name }}
-                                    {{ $person->last_name }}
-                                    {{ $person->suffix }}
-                                </div>
 
-                            @empty
-                                —
-                            @endforelse
+                            <td>
+                                {{ $case->incidentType?->name ?? '—' }}
+                            </td>
 
-                        </td>
 
-                        <td>
+                            <td>
 
-                            {{
-                                $case->incident_date
-                                    ? $case->incident_date->format('M d, Y')
-                                    : '—'
-                            }}
+                                @forelse($case->complainants as $person)
 
-                        </td>
+                                    <div>
+                                        {{
+                                            trim(
+                                                "{$person->first_name} "
+                                                . "{$person->middle_name} "
+                                                . "{$person->last_name} "
+                                                . "{$person->suffix}"
+                                            )
+                                        }}
+                                    </div>
 
-                        <td>
+                                @empty
 
-                            @php
-                                $statusClass = match($case->status->value) {
-                                    'Pending' => 'text-bg-warning',
-                                    'Under Investigation' => 'text-bg-primary',
-                                    'For Mediation' => 'text-bg-info',
-                                    'Settled' => 'text-bg-success',
-                                    'Resolved' => 'text-bg-success',
-                                    'Referred' => 'text-bg-dark',
-                                    'Dismissed' => 'text-bg-secondary',
-                                    default => 'text-bg-secondary',
-                                };
-                            @endphp
+                                    —
 
-                            <span class="badge {{ $statusClass }}">
-                                {{ $case->status->value }}
-                            </span>
+                                @endforelse
 
-                        </td>
+                            </td>
 
-                        <td>
 
-                            <a
-                                href="{{ route('blotter.show', $case) }}"
-                                class="btn btn-sm btn-outline-primary"
+                            <td>
+
+                                @forelse($case->respondents as $person)
+
+                                    <div>
+                                        {{
+                                            trim(
+                                                "{$person->first_name} "
+                                                . "{$person->middle_name} "
+                                                . "{$person->last_name} "
+                                                . "{$person->suffix}"
+                                            )
+                                        }}
+                                    </div>
+
+                                @empty
+
+                                    —
+
+                                @endforelse
+
+                            </td>
+
+
+                            <td class="text-nowrap">
+
+                                {{
+                                    $case->incident_date
+                                        ?->format('M d, Y')
+                                    ?? '—'
+                                }}
+
+                            </td>
+
+
+                            <td>
+
+                                <span class="badge {{ $stageClass }}">
+                                    {{ $stageLabel }}
+                                </span>
+
+                            </td>
+
+
+                            <td>
+
+                                <span class="badge {{ $recordStatusClass }}">
+                                    {{ $recordStatusLabel }}
+                                </span>
+
+                            </td>
+
+
+                            <td class="text-end">
+
+                                <a
+                                    href="{{ route('blotter.show', $case) }}"
+                                    class="btn btn-sm btn-outline-primary"
+                                >
+                                    <i class="bi bi-eye me-1"></i>
+                                    View
+                                </a>
+
+                            </td>
+
+                        </tr>
+
+                    @empty
+
+                        <tr>
+
+                            <td
+                                colspan="8"
+                                class="text-center text-muted py-5"
                             >
-                                View
-                            </a>
+                                No blotter records found.
+                            </td>
 
-                            <a
-                                href="{{ route('blotter.edit', $case) }}"
-                                class="btn btn-sm btn-outline-secondary"
-                            >
-                                Edit
-                            </a>
+                        </tr>
 
-                        </td>
-
-                    </tr>
-
-                @empty
-
-                    <tr>
-                        <td
-                            colspan="7"
-                            class="text-center text-muted py-5"
-                        >
-                            No blotter records found.
-                        </td>
-                    </tr>
-
-                @endforelse
+                    @endforelse
 
                 </tbody>
 
@@ -245,9 +296,16 @@
 
         </div>
 
-        <div class="mt-3">
-            {{ $cases->links() }}
-        </div>
+
+        @if($cases->hasPages())
+
+            <div class="card-footer bg-white px-0 pb-0 mt-3">
+
+                {{ $cases->links() }}
+
+            </div>
+
+        @endif
 
     </div>
 

@@ -179,13 +179,13 @@
             </div>
 
 
-            {{-- Record Status --}}
+            {{-- Case Status --}}
             <div class="col-12 col-md-4 col-lg-2">
 
                 <label
                     class="form-label small text-muted"
                 >
-                    Record Status
+                    Case Status
                 </label>
 
                 <select
@@ -194,7 +194,7 @@
                 >
 
                     <option value="">
-                        All Record Statuses
+                        All Case Statuses
                     </option>
 
                     @foreach(
@@ -349,7 +349,7 @@
                     </th>
 
                     <th>
-                        Record Status
+                        Case Status
                     </th>
 
                     <th>
@@ -491,7 +491,7 @@
                         </td>
 
 
-                        {{-- Record Status --}}
+                        {{-- Case Status --}}
                         <td>
 
                             @if($recordStatus)
@@ -550,7 +550,7 @@
                             <a
                                 href="{{
                                     route(
-                                        'blotter.show',
+                                        'cases.show',
                                         $case
                                     )
                                 }}"

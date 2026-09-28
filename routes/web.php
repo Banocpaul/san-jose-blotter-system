@@ -313,6 +313,81 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
+    | Case Management - Manage Case
+    |--------------------------------------------------------------------------
+    |
+    | This route uses the existing detailed case page in management mode.
+    | The /blotter/{blotter} route remains the read-only record view.
+    |
+    */
+
+    Route::get(
+        '/case-management/{blotter}',
+        [BlotterCaseController::class, 'show']
+    )
+        ->middleware(
+            'role:barangay_captain,secretary,staff,councilor,lupon'
+        )
+        ->name(
+            'cases.show'
+        );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Case Management - Edit / Update
+    |--------------------------------------------------------------------------
+    |
+    | Existing case records may be edited only from Case Management.
+    |
+    */
+
+    Route::middleware(
+        'role:barangay_captain,secretary,staff'
+    )->group(function () {
+
+        Route::get(
+            '/case-management/{blotter}/edit',
+            [BlotterCaseController::class, 'edit']
+        )->name(
+            'cases.edit'
+        );
+
+        Route::match(
+            ['put', 'patch'],
+            '/case-management/{blotter}',
+            [BlotterCaseController::class, 'update']
+        )->name(
+            'cases.update'
+        );
+
+    });
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Case Management - Archive
+    |--------------------------------------------------------------------------
+    |
+    | Barangay Captain and Secretary only.
+    | Blotter Records itself remains strictly view-only.
+    |
+    */
+
+    Route::delete(
+        '/case-management/{blotter}',
+        [BlotterCaseController::class, 'destroy']
+    )
+        ->middleware(
+            'role:barangay_captain,secretary'
+        )
+        ->name(
+            'cases.destroy'
+        );
+
+
+    /*
+    |--------------------------------------------------------------------------
     | Lupon & Mediation - Proceeding Management
     |--------------------------------------------------------------------------
     |
@@ -394,25 +469,17 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Blotter Cases - Create / Edit
+    | New Blotter Record
     |--------------------------------------------------------------------------
     |
-    | Barangay Captain
-    | Secretary
-    | Staff
+    | Creation remains a separate intake function.
+    | Existing Blotter Records are view-only.
     |
     */
 
     Route::middleware(
         'role:barangay_captain,secretary,staff'
     )->group(function () {
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Create Blotter Case
-        |--------------------------------------------------------------------------
-        */
 
         Route::get(
             '/blotter/create',
@@ -421,47 +488,11 @@ Route::middleware('auth')->group(function () {
             'blotter.create'
         );
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | Store Blotter Case
-        |--------------------------------------------------------------------------
-        */
-
         Route::post(
             '/blotter',
             [BlotterCaseController::class, 'store']
         )->name(
             'blotter.store'
-        );
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Edit Blotter Case
-        |--------------------------------------------------------------------------
-        */
-
-        Route::get(
-            '/blotter/{blotter}/edit',
-            [BlotterCaseController::class, 'edit']
-        )->name(
-            'blotter.edit'
-        );
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | Update Blotter Case
-        |--------------------------------------------------------------------------
-        */
-
-        Route::match(
-            ['put', 'patch'],
-            '/blotter/{blotter}',
-            [BlotterCaseController::class, 'update']
-        )->name(
-            'blotter.update'
         );
 
     });
@@ -500,28 +531,6 @@ Route::middleware('auth')->group(function () {
         );
 
     });
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | Blotter Cases - Archive
-    |--------------------------------------------------------------------------
-    |
-    | Barangay Captain
-    | Secretary
-    |
-    */
-
-    Route::delete(
-        '/blotter/{blotter}',
-        [BlotterCaseController::class, 'destroy']
-    )
-        ->middleware(
-            'role:barangay_captain,secretary'
-        )
-        ->name(
-            'blotter.destroy'
-        );
 
 
     /*

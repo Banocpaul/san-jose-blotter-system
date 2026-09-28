@@ -1,8 +1,933 @@
 @extends('layouts.app')
 
-@section('title', 'Blotter Case Details')
+@section('title', 'Case Details')
+@section('page-title', request()->routeIs('cases.show') ? 'Case Management' : 'Blotter Records')
 
 @section('content')
+
+@if(request()->routeIs('blotter.show'))
+
+
+@php
+    $recordStage = $case->case_stage;
+    $recordStatus = $case->record_status;
+
+    $stageLabel =
+        $recordStage instanceof \App\Enums\CaseStage
+            ? $recordStage->value
+            : ($recordStage ?? 'New');
+
+    $stageClass =
+        $recordStage instanceof \App\Enums\CaseStage
+            ? $recordStage->badgeClass()
+            : 'text-bg-secondary';
+
+    $recordStatusLabel =
+        $recordStatus instanceof \App\Enums\RecordStatus
+            ? $recordStatus->value
+            : ($recordStatus ?? 'Open');
+
+    $recordStatusClass =
+        $recordStatus instanceof \App\Enums\RecordStatus
+            ? $recordStatus->badgeClass()
+            : 'text-bg-primary';
+@endphp
+
+
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+
+    <div>
+
+        <div class="text-muted small mb-1">
+            Blotter Record
+        </div>
+
+        <h3 class="mb-2">
+            {{ $case->reference_number }}
+        </h3>
+
+        <div class="d-flex flex-wrap gap-2">
+
+            <span class="badge {{ $stageClass }}">
+                Current Stage: {{ $stageLabel }}
+            </span>
+
+            <span class="badge {{ $recordStatusClass }}">
+                Case Status: {{ $recordStatusLabel }}
+            </span>
+
+            <span class="badge text-bg-light border text-dark">
+                <i class="bi bi-eye me-1"></i>
+                View Only
+            </span>
+
+        </div>
+
+    </div>
+
+
+    <a
+        href="{{ route('blotter.index') }}"
+        class="btn btn-outline-secondary"
+    >
+        <i class="bi bi-arrow-left me-1"></i>
+        Back to Blotter Records
+    </a>
+
+</div>
+
+
+<div class="alert alert-light border d-flex align-items-start gap-2">
+
+    <i class="bi bi-info-circle mt-1"></i>
+
+    <div>
+        This page is read-only. Case assignment, investigation updates,
+        mediation, witness changes, and other workflow actions are handled
+        through <strong>Case Management</strong>.
+    </div>
+
+</div>
+
+
+<div class="row g-4">
+
+    <div class="col-lg-8">
+
+        {{-- ========================================================= --}}
+        {{-- INCIDENT INFORMATION --}}
+        {{-- ========================================================= --}}
+
+        <div class="card shadow-sm mb-4">
+
+            <div class="card-header bg-white">
+                <strong>Incident Information</strong>
+            </div>
+
+            <div class="card-body">
+
+                <div class="row g-3">
+
+                    <div class="col-md-6">
+
+                        <div class="text-muted small">
+                            Incident Type
+                        </div>
+
+                        <strong>
+                            {{ $case->incidentType?->name ?? '—' }}
+                        </strong>
+
+                    </div>
+
+
+                    <div class="col-md-3">
+
+                        <div class="text-muted small">
+                            Incident Date
+                        </div>
+
+                        <strong>
+                            {{
+                                $case->incident_date
+                                    ?->format('F d, Y')
+                                ?? '—'
+                            }}
+                        </strong>
+
+                    </div>
+
+
+                    <div class="col-md-3">
+
+                        <div class="text-muted small">
+                            Incident Time
+                        </div>
+
+                        <strong>
+
+                            @if($case->incident_time)
+
+                                {{
+                                    date(
+                                        'h:i A',
+                                        strtotime($case->incident_time)
+                                    )
+                                }}
+
+                            @else
+
+                                —
+
+                            @endif
+
+                        </strong>
+
+                    </div>
+
+
+                    <div class="col-12">
+
+                        <div class="text-muted small">
+                            Location
+                        </div>
+
+                        <strong>
+                            {{ $case->location ?: '—' }}
+                        </strong>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        {{-- ========================================================= --}}
+        {{-- NARRATIVE --}}
+        {{-- ========================================================= --}}
+
+        <div class="card shadow-sm mb-4">
+
+            <div class="card-header bg-white">
+                <strong>Complaint / Incident Narrative</strong>
+            </div>
+
+            <div class="card-body">
+
+                @if($case->narrative)
+
+                    <div style="white-space: pre-line;">
+                        {{ $case->narrative }}
+                    </div>
+
+                @else
+
+                    <span class="text-muted">
+                        No narrative recorded.
+                    </span>
+
+                @endif
+
+            </div>
+
+        </div>
+
+
+        {{-- ========================================================= --}}
+        {{-- INITIAL ACTION --}}
+        {{-- ========================================================= --}}
+
+        <div class="card shadow-sm mb-4">
+
+            <div class="card-header bg-white">
+                <strong>Initial Action</strong>
+            </div>
+
+            <div class="card-body">
+
+                @if($case->initial_action)
+
+                    <div style="white-space: pre-line;">
+                        {{ $case->initial_action }}
+                    </div>
+
+                @else
+
+                    <span class="text-muted">
+                        No initial action recorded.
+                    </span>
+
+                @endif
+
+            </div>
+
+        </div>
+
+
+        {{-- ========================================================= --}}
+        {{-- INVESTIGATION HISTORY --}}
+        {{-- ========================================================= --}}
+
+        <div class="card shadow-sm mb-4">
+
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+
+                <strong>
+                    Investigation History
+                </strong>
+
+                <span class="badge text-bg-secondary">
+                    {{ $case->investigationNotes->count() }}
+                </span>
+
+            </div>
+
+            <div class="card-body">
+
+                @forelse(
+                    $case->investigationNotes->sortByDesc('noted_at')
+                    as $note
+                )
+
+                    <div
+                        class="{{
+                            !$loop->last
+                                ? 'border-bottom pb-3 mb-3'
+                                : ''
+                        }}"
+                    >
+
+                        <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
+
+                            <div>
+
+                                <strong>
+                                    {{ $note->author?->name ?? 'Unknown User' }}
+                                </strong>
+
+                                @if($note->author?->role)
+
+                                    <div class="small text-muted">
+                                        {{ $note->author->role->name }}
+                                    </div>
+
+                                @endif
+
+                            </div>
+
+
+                            <div class="small text-muted">
+
+                                {{
+                                    $note->noted_at
+                                        ?->format('M d, Y h:i A')
+                                    ?? '—'
+                                }}
+
+                            </div>
+
+                        </div>
+
+
+                        <div style="white-space: pre-line;">
+                            {{ $note->note }}
+                        </div>
+
+
+                        @if($note->action_taken)
+
+                            <div class="mt-3">
+
+                                <div class="text-muted small">
+                                    Action Taken
+                                </div>
+
+                                <div style="white-space: pre-line;">
+                                    {{ $note->action_taken }}
+                                </div>
+
+                            </div>
+
+                        @endif
+
+                    </div>
+
+                @empty
+
+                    <span class="text-muted">
+                        No investigation notes recorded.
+                    </span>
+
+                @endforelse
+
+            </div>
+
+        </div>
+
+
+        {{-- ========================================================= --}}
+        {{-- PROCEEDING HISTORY --}}
+        {{-- ========================================================= --}}
+
+        <div class="card shadow-sm mb-4">
+
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+
+                <strong>
+                    Mediation / Conciliation History
+                </strong>
+
+                <span class="badge text-bg-secondary">
+                    {{ $case->mediationSessions->count() }}
+                </span>
+
+            </div>
+
+            <div class="card-body">
+
+                @forelse(
+                    $case->mediationSessions->sortByDesc('hearing_number')
+                    as $session
+                )
+
+                    <div
+                        class="border rounded p-3 {{
+                            !$loop->last
+                                ? 'mb-3'
+                                : ''
+                        }}"
+                    >
+
+                        <div class="d-flex flex-wrap justify-content-between gap-3 mb-3">
+
+                            <div>
+
+                                <strong>
+                                    {{ $session->proceeding_type ?: 'Mediation' }}
+                                    Hearing #{{ $session->hearing_number }}
+                                </strong>
+
+                                <div class="small text-muted mt-1">
+                                    Assigned Lupon:
+                                    {{ $session->luponMember?->name ?? 'Not Assigned' }}
+                                </div>
+
+                            </div>
+
+
+                            <span class="badge text-bg-light border text-dark align-self-start">
+                                {{ $session->status }}
+                            </span>
+
+                        </div>
+
+
+                        <div class="row g-3">
+
+                            <div class="col-md-4">
+
+                                <div class="text-muted small">
+                                    Schedule
+                                </div>
+
+                                <div>
+
+                                    {{
+                                        $session->scheduled_date
+                                            ?->format('M d, Y')
+                                        ?? '—'
+                                    }}
+
+                                    @if($session->scheduled_time)
+
+                                        {{
+                                            date(
+                                                'h:i A',
+                                                strtotime($session->scheduled_time)
+                                            )
+                                        }}
+
+                                    @endif
+
+                                </div>
+
+                            </div>
+
+
+                            <div class="col-md-4">
+
+                                <div class="text-muted small">
+                                    Venue
+                                </div>
+
+                                <div>
+                                    {{ $session->venue ?: '—' }}
+                                </div>
+
+                            </div>
+
+
+                            <div class="col-md-4">
+
+                                <div class="text-muted small">
+                                    Outcome
+                                </div>
+
+                                <div>
+                                    {{ $session->outcome?->outcome ?? 'Pending' }}
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        @if($session->mediation_notes)
+
+                            <div class="mt-3">
+
+                                <div class="text-muted small">
+                                    Proceeding Notes
+                                </div>
+
+                                <div style="white-space: pre-line;">
+                                    {{ $session->mediation_notes }}
+                                </div>
+
+                            </div>
+
+                        @endif
+
+
+                        @if($session->outcome?->agreement_details)
+
+                            <div class="mt-3">
+
+                                <div class="text-muted small">
+                                    Agreement Details
+                                </div>
+
+                                <div style="white-space: pre-line;">
+                                    {{ $session->outcome->agreement_details }}
+                                </div>
+
+                            </div>
+
+                        @endif
+
+
+                        @if($session->outcome?->remarks)
+
+                            <div class="mt-3">
+
+                                <div class="text-muted small">
+                                    Outcome Remarks
+                                </div>
+
+                                <div style="white-space: pre-line;">
+                                    {{ $session->outcome->remarks }}
+                                </div>
+
+                            </div>
+
+                        @endif
+
+                    </div>
+
+                @empty
+
+                    <span class="text-muted">
+                        No mediation or conciliation proceedings recorded.
+                    </span>
+
+                @endforelse
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <div class="col-lg-4">
+
+        {{-- ========================================================= --}}
+        {{-- COMPLAINANTS --}}
+        {{-- ========================================================= --}}
+
+        <div class="card shadow-sm mb-4">
+
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+
+                <strong>
+                    Complainant(s)
+                </strong>
+
+                <span class="badge text-bg-primary">
+                    {{ $case->complainants->count() }}
+                </span>
+
+            </div>
+
+            <div class="card-body">
+
+                @forelse($case->complainants as $person)
+
+                    <div
+                        class="{{
+                            !$loop->last
+                                ? 'border-bottom pb-3 mb-3'
+                                : ''
+                        }}"
+                    >
+
+                        <strong>
+                            {{
+                                trim(
+                                    $person->first_name
+                                    . ' '
+                                    . ($person->middle_name ?? '')
+                                    . ' '
+                                    . $person->last_name
+                                    . ' '
+                                    . ($person->suffix ?? '')
+                                )
+                            }}
+                        </strong>
+
+
+                        @if($person->resident)
+
+                            <div class="small text-success">
+                                Registered Resident
+                            </div>
+
+                            @if($person->resident->resident_code)
+
+                                <div class="small text-muted">
+                                    {{ $person->resident->resident_code }}
+                                </div>
+
+                            @endif
+
+                        @else
+
+                            <div class="small text-muted">
+                                Non-registered resident
+                            </div>
+
+                        @endif
+
+
+                        @if($person->contact_number)
+
+                            <div class="small mt-2">
+                                <strong>Contact:</strong>
+                                {{ $person->contact_number }}
+                            </div>
+
+                        @endif
+
+
+                        @if($person->address)
+
+                            <div class="small mt-1">
+                                <strong>Address:</strong>
+                                {{ $person->address }}
+                            </div>
+
+                        @endif
+
+
+                        @if($person->sitio)
+
+                            <div class="small mt-1">
+                                <strong>Sitio:</strong>
+                                {{ $person->sitio }}
+                            </div>
+
+                        @endif
+
+                    </div>
+
+                @empty
+
+                    <span class="text-muted">
+                        No complainant recorded.
+                    </span>
+
+                @endforelse
+
+            </div>
+
+        </div>
+
+
+        {{-- ========================================================= --}}
+        {{-- RESPONDENTS --}}
+        {{-- ========================================================= --}}
+
+        <div class="card shadow-sm mb-4">
+
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+
+                <strong>
+                    Respondent(s)
+                </strong>
+
+                <span class="badge text-bg-danger">
+                    {{ $case->respondents->count() }}
+                </span>
+
+            </div>
+
+            <div class="card-body">
+
+                @forelse($case->respondents as $person)
+
+                    <div
+                        class="{{
+                            !$loop->last
+                                ? 'border-bottom pb-3 mb-3'
+                                : ''
+                        }}"
+                    >
+
+                        <strong>
+                            {{
+                                trim(
+                                    $person->first_name
+                                    . ' '
+                                    . ($person->middle_name ?? '')
+                                    . ' '
+                                    . $person->last_name
+                                    . ' '
+                                    . ($person->suffix ?? '')
+                                )
+                            }}
+                        </strong>
+
+
+                        @if($person->resident)
+
+                            <div class="small text-success">
+                                Registered Resident
+                            </div>
+
+                            @if($person->resident->resident_code)
+
+                                <div class="small text-muted">
+                                    {{ $person->resident->resident_code }}
+                                </div>
+
+                            @endif
+
+                        @else
+
+                            <div class="small text-muted">
+                                Non-registered resident
+                            </div>
+
+                        @endif
+
+
+                        @if($person->contact_number)
+
+                            <div class="small mt-2">
+                                <strong>Contact:</strong>
+                                {{ $person->contact_number }}
+                            </div>
+
+                        @endif
+
+
+                        @if($person->address)
+
+                            <div class="small mt-1">
+                                <strong>Address:</strong>
+                                {{ $person->address }}
+                            </div>
+
+                        @endif
+
+
+                        @if($person->sitio)
+
+                            <div class="small mt-1">
+                                <strong>Sitio:</strong>
+                                {{ $person->sitio }}
+                            </div>
+
+                        @endif
+
+                    </div>
+
+                @empty
+
+                    <span class="text-muted">
+                        No respondent recorded.
+                    </span>
+
+                @endforelse
+
+            </div>
+
+        </div>
+
+
+        {{-- ========================================================= --}}
+        {{-- WITNESSES --}}
+        {{-- ========================================================= --}}
+
+        <div class="card shadow-sm mb-4">
+
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+
+                <strong>
+                    Witness(es)
+                </strong>
+
+                <span class="badge text-bg-secondary">
+                    {{ $case->witnesses->count() }}
+                </span>
+
+            </div>
+
+            <div class="card-body">
+
+                @forelse($case->witnesses as $witness)
+
+                    <div
+                        class="{{
+                            !$loop->last
+                                ? 'border-bottom pb-3 mb-3'
+                                : ''
+                        }}"
+                    >
+
+                        <strong>
+                            {{ $witness->full_name }}
+                        </strong>
+
+
+                        @if($witness->resident)
+
+                            <div class="small text-success">
+                                Registered Resident
+                            </div>
+
+                        @else
+
+                            <div class="small text-muted">
+                                Non-registered Witness
+                            </div>
+
+                        @endif
+
+
+                        @if($witness->contact_number)
+
+                            <div class="small mt-2">
+                                <strong>Contact:</strong>
+                                {{ $witness->contact_number }}
+                            </div>
+
+                        @endif
+
+
+                        @if($witness->address)
+
+                            <div class="small mt-1">
+                                <strong>Address:</strong>
+                                {{ $witness->address }}
+                            </div>
+
+                        @endif
+
+
+                        @if($witness->statement)
+
+                            <div class="small mt-2">
+
+                                <div class="text-muted">
+                                    Witness Statement
+                                </div>
+
+                                <div style="white-space: pre-line;">
+                                    {{ $witness->statement }}
+                                </div>
+
+                            </div>
+
+                        @endif
+
+                    </div>
+
+                @empty
+
+                    <span class="text-muted">
+                        No witnesses recorded.
+                    </span>
+
+                @endforelse
+
+            </div>
+
+        </div>
+
+
+        {{-- ========================================================= --}}
+        {{-- RECORD INFORMATION --}}
+        {{-- ========================================================= --}}
+
+        <div class="card shadow-sm">
+
+            <div class="card-header bg-white">
+                <strong>Record Information</strong>
+            </div>
+
+            <div class="card-body">
+
+                <div class="mb-3">
+
+                    <div class="text-muted small">
+                        Reference Number
+                    </div>
+
+                    <strong>
+                        {{ $case->reference_number }}
+                    </strong>
+
+                </div>
+
+
+                <div class="mb-3">
+
+                    <div class="text-muted small">
+                        Reported At
+                    </div>
+
+                    <div>
+                        {{
+                            $case->reported_at
+                                ?->format('M d, Y h:i A')
+                            ?? '—'
+                        }}
+                    </div>
+
+                </div>
+
+
+                <div>
+
+                    <div class="text-muted small">
+                        Last Updated
+                    </div>
+
+                    <div>
+                        {{
+                            $case->updated_at
+                                ?->format('M d, Y h:i A')
+                            ?? '—'
+                        }}
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+@else
+
 
 @php
     $caseStatus = $case->status instanceof \App\Enums\CaseStatus
@@ -119,7 +1044,7 @@
     <div class="d-flex gap-2">
 
         <a
-            href="{{ request()->routeIs('blotter.show') && url()->previous() !== url()->current() ? url()->previous() : route('blotter.index') }}"
+            href="{{ route('cases.index') }}"
             class="btn btn-outline-secondary"
         >
             Back
@@ -127,7 +1052,7 @@
 
         @can('update', $case)
             <a
-                href="{{ route('blotter.edit', $case) }}"
+                href="{{ route('cases.edit', $case) }}"
                 class="btn btn-primary"
             >
                 Edit Case
@@ -137,7 +1062,7 @@
         @can('delete', $case)
             <form
                 method="POST"
-                action="{{ route('blotter.destroy', $case) }}"
+                action="{{ route('cases.destroy', $case) }}"
                 onsubmit="return confirm('Archive this blotter case?');"
             >
 
@@ -3175,5 +4100,8 @@
     </div>
 
 </div>
+
+
+@endif
 
 @endsection

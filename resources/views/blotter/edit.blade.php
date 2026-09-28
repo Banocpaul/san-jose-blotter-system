@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
-@section('title', 'Edit ' . $case->reference_number)
+@section('title', 'Edit Case - ' . $case->reference_number)
+@section('page-title', 'Case Management')
 
 @section('content')
 
@@ -8,7 +9,7 @@
 
     <div>
         <h3 class="mb-1">
-            Edit Blotter Case
+            Edit Case
         </h3>
 
         <div class="text-muted">
@@ -17,7 +18,7 @@
     </div>
 
     <a
-        href="{{ route('blotter.show', $case) }}"
+        href="{{ route('cases.show', $case) }}"
         class="btn btn-outline-secondary"
     >
         Back
@@ -60,7 +61,7 @@
     <div class="card-body">
 
         <form
-            action="{{ route('blotter.update', $case) }}"
+            action="{{ route('cases.update', $case) }}"
             method="POST"
         >
 
@@ -93,32 +94,45 @@
                 <div class="col-md-6">
 
                     <label class="form-label">
-                        Status *
+                        Current Stage / Case Status
                     </label>
 
-                    <select
-                        name="status"
-                        class="form-select"
-                        required
-                    >
+                    <div class="border rounded p-3 bg-light">
 
-                        @foreach($statuses as $status)
+                        <div class="d-flex flex-wrap gap-2">
 
-                            <option
-                                value="{{ $status->value }}"
-                                @selected(
-                                    old(
-                                        'status',
-                                        $case->status->value
-                                    ) === $status->value
-                                )
+                            <span
+                                class="badge {{
+                                    $case->case_stage?->badgeClass()
+                                    ?? 'text-bg-secondary'
+                                }}"
                             >
-                                {{ $status->value }}
-                            </option>
+                                {{
+                                    $case->case_stage?->value
+                                    ?? 'New'
+                                }}
+                            </span>
 
-                        @endforeach
+                            <span
+                                class="badge {{
+                                    $case->record_status?->badgeClass()
+                                    ?? 'text-bg-primary'
+                                }}"
+                            >
+                                {{
+                                    $case->record_status?->value
+                                    ?? 'Open'
+                                }}
+                            </span>
 
-                    </select>
+                        </div>
+
+                        <div class="form-text mt-2">
+                            Workflow stage and case status are changed through
+                            Case Management actions, not through this edit form.
+                        </div>
+
+                    </div>
 
                 </div>
 
@@ -293,7 +307,7 @@
                     </button>
 
                     <a
-                        href="{{ route('blotter.show', $case) }}"
+                        href="{{ route('cases.show', $case) }}"
                         class="btn btn-light"
                     >
                         Cancel

@@ -54,23 +54,6 @@ class BlotterCaseController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Legacy Status Filter
-        |--------------------------------------------------------------------------
-        |
-        | This remains temporarily while the rest of the application is migrated
-        | from the old status field to case_stage + record_status.
-        |
-        */
-
-        if ($request->filled('status')) {
-            $query->where(
-                'status',
-                $request->status
-            );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
         | Incident Type Filter
         |--------------------------------------------------------------------------
         */
@@ -103,14 +86,11 @@ class BlotterCaseController extends Controller
                 'name',
             ]);
 
-        $statuses = CaseStatus::cases();
-
         return view(
             'blotter.index',
             compact(
                 'cases',
-                'incidentTypes',
-                'statuses'
+                'incidentTypes'
             )
         );
     }
@@ -424,8 +404,7 @@ class BlotterCaseController extends Controller
     | Edit Blotter Case
     |--------------------------------------------------------------------------
     |
-    | This remains temporarily available while editing responsibilities are
-    | being moved completely into Case Management.
+    | Editing is available through Case Management only.
     |
     */
 
@@ -449,9 +428,6 @@ class BlotterCaseController extends Controller
                 'name',
             ]);
 
-        $statuses =
-            CaseStatus::cases();
-
         return view(
             'blotter.edit',
             [
@@ -460,9 +436,6 @@ class BlotterCaseController extends Controller
 
                 'incidentTypes' =>
                     $incidentTypes,
-
-                'statuses' =>
-                    $statuses,
             ]
         );
     }
@@ -472,8 +445,8 @@ class BlotterCaseController extends Controller
     | Update Blotter Case
     |--------------------------------------------------------------------------
     |
-    | Legacy status synchronization remains temporarily enabled.
-    | Case Management will eventually own workflow/status changes.
+    | Case Management owns edits to existing case records.
+    | Workflow changes remain synchronized with the current stage/status model.
     |
     */
 
@@ -677,12 +650,12 @@ class BlotterCaseController extends Controller
 
         return redirect()
             ->route(
-                'blotter.show',
+                'cases.show',
                 $blotter
             )
             ->with(
                 'success',
-                'Blotter case updated successfully.'
+                'Case updated successfully.'
             );
     }
 
@@ -691,8 +664,7 @@ class BlotterCaseController extends Controller
     | Archive Blotter Case
     |--------------------------------------------------------------------------
     |
-    | This route remains available temporarily. The client-requested Blotter
-    | Records page will later become view-only.
+    | Archiving is a Case Management action. Blotter Records remains view-only.
     |
     */
 
@@ -743,11 +715,11 @@ class BlotterCaseController extends Controller
 
         return redirect()
             ->route(
-                'blotter.index'
+                'cases.index'
             )
             ->with(
                 'success',
-                'Blotter case archived successfully.'
+                'Case archived successfully.'
             );
     }
 
