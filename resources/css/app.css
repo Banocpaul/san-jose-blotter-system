@@ -647,7 +647,7 @@
                 52px;
 
             animation:
-                contentEnter .34s var(--ease) both;
+                contentEnter .34s var(--ease);
         }
 
         .page-content > .d-flex:first-child h3,
