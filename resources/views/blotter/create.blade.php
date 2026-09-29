@@ -8,19 +8,25 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h3 class="mb-1">New Blotter Record</h3>
+
         <div class="text-muted">
             Search and select existing people from the People Directory, then record the incident details.
         </div>
     </div>
 
-    <a href="{{ route('blotter.index') }}" class="btn btn-outline-secondary">
+    <a
+        href="{{ route('blotter.index') }}"
+        class="btn btn-outline-secondary"
+    >
         Back
     </a>
 </div>
 
+
 @if($errors->any())
     <div class="alert alert-danger">
         <strong>Please correct the following:</strong>
+
         <ul class="mb-0 mt-2">
             @foreach($errors->all() as $error)
                 <li>{{ $error }}</li>
@@ -29,17 +35,24 @@
     </div>
 @endif
 
-<form method="POST" action="{{ route('blotter.store') }}">
+
+<form
+    method="POST"
+    action="{{ route('blotter.store') }}"
+>
     @csrf
 
-    <div class="alert alert-info border-0 mb-4">
 
+    {{-- =========================================================
+        PEOPLE DIRECTORY INFORMATION
+    ========================================================== --}}
+
+    <div class="alert alert-info border-0 mb-4">
         <div class="d-flex gap-3 align-items-start">
 
             <i class="bi bi-people mt-1"></i>
 
             <div>
-
                 <strong>
                     Reuse existing People Directory records.
                 </strong>
@@ -49,96 +62,184 @@
                     The same person cannot be selected as both complainant
                     and respondent.
                 </div>
-
             </div>
 
         </div>
-
     </div>
 
-    <div class="card shadow-sm mb-4">
+
+    {{-- =========================================================
+        PEOPLE INVOLVED
+    ========================================================== --}}
+
+    <div class="card shadow-sm mb-4 people-picker-card">
+
         <div class="card-header bg-white">
-            <strong>People Involved — People Directory</strong>
+            <strong>
+                People Involved — People Directory
+            </strong>
         </div>
 
         <div class="card-body">
+
             <div class="row g-4">
+
+                {{-- COMPLAINANT --}}
                 <div class="col-lg-6">
+
                     @include('blotter._person-picker', [
                         'prefix' => 'complainant',
                         'label' => 'Complainant',
                     ])
+
                 </div>
 
+
+                {{-- RESPONDENT --}}
                 <div class="col-lg-6">
+
                     @include('blotter._person-picker', [
                         'prefix' => 'respondent',
                         'label' => 'Respondent',
                     ])
+
                 </div>
+
             </div>
+
         </div>
+
     </div>
 
+
+    {{-- =========================================================
+        INCIDENT INFORMATION
+    ========================================================== --}}
+
     <div class="card shadow-sm mb-4">
+
         <div class="card-header bg-white">
             <strong>Incident Information</strong>
         </div>
 
+
         <div class="card-body">
+
             <div class="row g-3">
+
+
+                {{-- INCIDENT TYPE --}}
                 <div class="col-md-6">
-                    <label class="form-label">Incident Type *</label>
+
+                    <label
+                        for="incident_type_id"
+                        class="form-label"
+                    >
+                        Incident Type *
+                    </label>
+
                     <select
+                        id="incident_type_id"
                         name="incident_type_id"
                         class="form-select @error('incident_type_id') is-invalid @enderror"
                         required
                     >
-                        <option value="">Select Incident Type</option>
+
+                        <option value="">
+                            Select Incident Type
+                        </option>
+
                         @foreach($incidentTypes as $type)
+
                             <option
                                 value="{{ $type->id }}"
-                                @selected(old('incident_type_id') == $type->id)
+                                @selected(
+                                    old('incident_type_id') == $type->id
+                                )
                             >
                                 {{ $type->name }}
                             </option>
+
                         @endforeach
+
                     </select>
+
                     @error('incident_type_id')
-                        <div class="invalid-feedback">{{ $message }}</div>
+                        <div class="invalid-feedback">
+                            {{ $message }}
+                        </div>
                     @enderror
+
                 </div>
 
+
+                {{-- INCIDENT DATE --}}
                 <div class="col-md-3">
-                    <label class="form-label">Incident Date *</label>
+
+                    <label
+                        for="incident_date"
+                        class="form-label"
+                    >
+                        Incident Date *
+                    </label>
+
                     <input
+                        id="incident_date"
                         type="date"
                         name="incident_date"
                         value="{{ old('incident_date', now()->toDateString()) }}"
                         class="form-control @error('incident_date') is-invalid @enderror"
                         required
                     >
+
                     @error('incident_date')
-                        <div class="invalid-feedback">{{ $message }}</div>
+                        <div class="invalid-feedback">
+                            {{ $message }}
+                        </div>
                     @enderror
+
                 </div>
 
+
+                {{-- INCIDENT TIME --}}
                 <div class="col-md-3">
-                    <label class="form-label">Incident Time</label>
+
+                    <label
+                        for="incident_time"
+                        class="form-label"
+                    >
+                        Incident Time
+                    </label>
+
                     <input
+                        id="incident_time"
                         type="time"
                         name="incident_time"
                         value="{{ old('incident_time') }}"
                         class="form-control @error('incident_time') is-invalid @enderror"
                     >
+
                     @error('incident_time')
-                        <div class="invalid-feedback">{{ $message }}</div>
+                        <div class="invalid-feedback">
+                            {{ $message }}
+                        </div>
                     @enderror
+
                 </div>
 
+
+                {{-- LOCATION --}}
                 <div class="col-12">
-                    <label class="form-label">Location *</label>
+
+                    <label
+                        for="location"
+                        class="form-label"
+                    >
+                        Location *
+                    </label>
+
                     <input
+                        id="location"
                         type="text"
                         name="location"
                         value="{{ old('location') }}"
@@ -146,60 +247,188 @@
                         maxlength="255"
                         required
                     >
+
                     @error('location')
-                        <div class="invalid-feedback">{{ $message }}</div>
+                        <div class="invalid-feedback">
+                            {{ $message }}
+                        </div>
                     @enderror
+
                 </div>
 
+
+                {{-- COMPLAINT / NARRATIVE --}}
                 <div class="col-12">
-                    <label class="form-label">Complaint / Narrative *</label>
+
+                    <label
+                        for="narrative"
+                        class="form-label"
+                    >
+                        Complaint / Narrative *
+                    </label>
+
                     <textarea
+                        id="narrative"
                         name="narrative"
                         rows="5"
                         class="form-control @error('narrative') is-invalid @enderror"
                         required
                     >{{ old('narrative') }}</textarea>
+
                     @error('narrative')
-                        <div class="invalid-feedback">{{ $message }}</div>
+                        <div class="invalid-feedback">
+                            {{ $message }}
+                        </div>
                     @enderror
+
                 </div>
 
+
+                {{-- INITIAL ACTION --}}
                 <div class="col-md-6">
-                    <label class="form-label">Initial Action</label>
+
+                    <label
+                        for="initial_action"
+                        class="form-label"
+                    >
+                        Initial Action
+                    </label>
+
                     <textarea
+                        id="initial_action"
                         name="initial_action"
                         rows="3"
                         class="form-control @error('initial_action') is-invalid @enderror"
                     >{{ old('initial_action') }}</textarea>
+
                     @error('initial_action')
-                        <div class="invalid-feedback">{{ $message }}</div>
+                        <div class="invalid-feedback">
+                            {{ $message }}
+                        </div>
                     @enderror
+
                 </div>
 
+
+                {{-- REMARKS --}}
                 <div class="col-md-6">
-                    <label class="form-label">Remarks</label>
+
+                    <label
+                        for="remarks"
+                        class="form-label"
+                    >
+                        Remarks
+                    </label>
+
                     <textarea
+                        id="remarks"
                         name="remarks"
                         rows="3"
                         class="form-control @error('remarks') is-invalid @enderror"
                     >{{ old('remarks') }}</textarea>
+
                     @error('remarks')
-                        <div class="invalid-feedback">{{ $message }}</div>
+                        <div class="invalid-feedback">
+                            {{ $message }}
+                        </div>
                     @enderror
+
                 </div>
+
+
             </div>
+
         </div>
+
     </div>
 
+
+    {{-- =========================================================
+        FORM ACTIONS
+    ========================================================== --}}
+
     <div class="d-flex gap-2 mb-5">
-        <button type="submit" class="btn btn-primary">
+
+        <button
+            type="submit"
+            class="btn btn-primary"
+        >
+            <i class="bi bi-save me-1"></i>
             Save Blotter Record
         </button>
 
-        <a href="{{ route('blotter.index') }}" class="btn btn-outline-secondary">
+
+        <a
+            href="{{ route('blotter.index') }}"
+            class="btn btn-outline-secondary"
+        >
             Cancel
         </a>
+
     </div>
+
 </form>
+
+
+<style>
+    /*
+    |--------------------------------------------------------------------------
+    | People Directory Picker Fix
+    |--------------------------------------------------------------------------
+    |
+    | The global .card style uses overflow:hidden.
+    | That clips the searchable People Directory dropdown.
+    | Only this card is allowed to overflow.
+    |
+    */
+
+    .people-picker-card {
+        overflow: visible !important;
+        position: relative;
+        z-index: 30;
+    }
+
+    .people-picker-card .card-body {
+        overflow: visible !important;
+    }
+
+    .people-picker-card .row {
+        overflow: visible !important;
+    }
+
+    .people-picker-card [class*="col-"] {
+        overflow: visible !important;
+    }
+
+    .people-picker-card .person-picker {
+        position: relative;
+        overflow: visible !important;
+    }
+
+    .people-picker-card [data-person-results] {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 100%;
+
+        z-index: 2000 !important;
+
+        max-height: 280px;
+        overflow-y: auto;
+
+        background: #ffffff;
+
+        border: 1px solid #d9dee8;
+        border-radius: 10px;
+
+        box-shadow:
+            0 12px 30px rgba(15, 23, 42, 0.15);
+    }
+
+    .people-picker-card [data-person-results] .list-group-item {
+        position: relative;
+        z-index: 2001;
+    }
+</style>
 
 @endsection
