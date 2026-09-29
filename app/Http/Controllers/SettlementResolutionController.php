@@ -14,36 +14,18 @@ use Illuminate\Support\Facades\DB;
 
 class SettlementResolutionController extends Controller
 {
-    /*
-    |--------------------------------------------------------------------------
-    | Settlement & Resolution List
-    |--------------------------------------------------------------------------
-    */
-
     public function index(Request $request)
     {
         $user = $request->user();
         $role = $user?->role?->slug;
 
-        if (
-            ! in_array(
-                $role,
-                [
-                    'barangay_captain',
-                    'secretary',
-                    'lupon',
-                ],
-                true
-            )
-        ) {
+        if (! in_array($role, [
+            'barangay_captain',
+            'secretary',
+            'lupon',
+        ], true)) {
             abort(403);
         }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Base Visibility Query
-        |--------------------------------------------------------------------------
-        */
 
         $baseQuery = CaseResolution::query();
 
@@ -58,49 +40,23 @@ class SettlementResolutionController extends Controller
             );
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | KPI Counts
-        |--------------------------------------------------------------------------
-        */
-
         $kpiRow = (clone $baseQuery)
             ->selectRaw(
-                "SUM(CASE WHEN status = 'Pending' THEN 1 ELSE 0 END) AS pending_count"
+                "SUM(CASE WHEN status = 'Active' THEN 1 ELSE 0 END) AS active_count"
             )
             ->selectRaw(
-                "SUM(CASE WHEN status = 'Finalized' THEN 1 ELSE 0 END) AS finalized_count"
+                "SUM(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) AS completed_count"
             )
             ->selectRaw(
-                "SUM(CASE WHEN status = 'Resolved' THEN 1 ELSE 0 END) AS resolved_count"
+                "COUNT(*) AS total_count"
             )
             ->first();
 
         $kpis = [
-            'pending' =>
-                (int) (
-                    $kpiRow?->pending_count
-                    ?? 0
-                ),
-
-            'finalized' =>
-                (int) (
-                    $kpiRow?->finalized_count
-                    ?? 0
-                ),
-
-            'resolved' =>
-                (int) (
-                    $kpiRow?->resolved_count
-                    ?? 0
-                ),
+            'active' => (int) ($kpiRow?->active_count ?? 0),
+            'completed' => (int) ($kpiRow?->completed_count ?? 0),
+            'total' => (int) ($kpiRow?->total_count ?? 0),
         ];
-
-        /*
-        |--------------------------------------------------------------------------
-        | Settlement Records Query
-        |--------------------------------------------------------------------------
-        */
 
         $resolutions = (clone $baseQuery)
             ->select([
@@ -110,38 +66,23 @@ class SettlementResolutionController extends Controller
                 'case_resolutions.resolution_type',
                 'case_resolutions.status',
                 'case_resolutions.agreement_details',
-                'case_resolutions.finalized_by',
-                'case_resolutions.finalized_at',
+                'case_resolutions.remarks',
                 'case_resolutions.resolved_by',
                 'case_resolutions.resolved_at',
                 'case_resolutions.updated_at',
             ])
             ->with([
-                /*
-                 * Legacy status remains loaded temporarily
-                 * while the application is being migrated.
-                 */
                 'blotterCase:id,reference_number,incident_type_id,status,case_stage,record_status,closed_at',
-
                 'blotterCase.incidentType:id,name',
-
                 'blotterCase.complainants:id,blotter_case_id,first_name,middle_name,last_name,suffix',
-
                 'blotterCase.respondents:id,blotter_case_id,first_name,middle_name,last_name,suffix',
-
                 'mediationOutcome:id,mediation_session_id,outcome,agreement_details,remarks,recorded_at',
-
                 'mediationOutcome.mediationSession:id,hearing_number,proceeding_type,scheduled_date',
-
-                'finalizedBy:id,name',
-
                 'resolvedBy:id,name',
             ])
             ->when(
                 $request->filled('search'),
-                function (
-                    Builder $query
-                ) use ($request) {
+                function (Builder $query) use ($request) {
                     $search = trim(
                         $request
                             ->string('search')
@@ -149,9 +90,7 @@ class SettlementResolutionController extends Controller
                     );
 
                     $query->where(
-                        function (
-                            Builder $inner
-                        ) use ($search) {
+                        function (Builder $inner) use ($search) {
                             $inner
                                 ->where(
                                     'resolution_type',
@@ -212,28 +151,16 @@ class SettlementResolutionController extends Controller
                 }
             );
 
-        /*
-        |--------------------------------------------------------------------------
-        | Settlement Record Status Filter
-        |--------------------------------------------------------------------------
-        |
-        | This status belongs to the settlement document itself and is separate
-        | from the blotter case record_status field.
-        |
-        */
-
-        $status =
-            $request
-                ->string('status')
-                ->toString();
+        $status = $request
+            ->string('status')
+            ->toString();
 
         if (
             in_array(
                 $status,
                 [
-                    'Pending',
-                    'Finalized',
-                    'Resolved',
+                    'Active',
+                    'Completed',
                 ],
                 true
             )
@@ -244,12 +171,6 @@ class SettlementResolutionController extends Controller
             );
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Pagination
-        |--------------------------------------------------------------------------
-        */
-
         $resolutions = $resolutions
             ->latest('updated_at')
             ->paginate(15)
@@ -258,188 +179,41 @@ class SettlementResolutionController extends Controller
         return view(
             'settlements.index',
             [
-                'resolutions' =>
-                    $resolutions,
-
-                'kpis' =>
-                    $kpis,
-
-                'roleSlug' =>
-                    $role,
+                'resolutions' => $resolutions,
+                'kpis' => $kpis,
+                'roleSlug' => $role,
             ]
         );
     }
 
     /*
     |--------------------------------------------------------------------------
-    | Finalize Settlement
+    | Complete Settlement
     |--------------------------------------------------------------------------
+    |
+    | Settlement status is intentionally separate from the main case status.
+    |
+    | Settlement:
+    |     Active -> Completed
+    |
+    | Main Case Status:
+    |     Open / Resolved / Closed
+    |
+    | The existing resolved_by / resolved_at columns are retained as legacy
+    | storage for the settlement completion actor and timestamp.
+    |
     */
 
-    public function finalize(
+    public function complete(
         Request $request,
         CaseResolution $resolution
     ) {
-        $this->ensureManager(
-            $request
-        );
+        $this->ensureManager($request);
 
-        if (
-            $resolution->status
-            !== 'Pending'
-        ) {
+        if ($resolution->status !== 'Active') {
             return back()->withErrors([
                 'resolution' =>
-                    'Only pending settlement records may be finalized.',
-            ]);
-        }
-
-        $data = $request->validate([
-            'agreement_details' => [
-                'nullable',
-                'string',
-                'max:10000',
-            ],
-
-            'remarks' => [
-                'nullable',
-                'string',
-                'max:5000',
-            ],
-        ]);
-
-        DB::transaction(
-            function () use (
-                $resolution,
-                $data,
-                $request
-            ) {
-                /*
-                 * Lock the resolution record so two users
-                 * cannot finalize it simultaneously.
-                 */
-
-                $locked =
-                    CaseResolution::whereKey(
-                        $resolution->id
-                    )
-                        ->lockForUpdate()
-                        ->firstOrFail();
-
-                if (
-                    $locked->status
-                    !== 'Pending'
-                ) {
-                    abort(
-                        409,
-                        'This settlement record has already been processed.'
-                    );
-                }
-
-                $old = $locked->only([
-                    'status',
-                    'agreement_details',
-                    'remarks',
-                ]);
-
-                /*
-                |--------------------------------------------------------------------------
-                | Finalize Settlement Document
-                |--------------------------------------------------------------------------
-                |
-                | This changes the settlement document only.
-                | The blotter case has already entered Settled/Resolved
-                | after the mediation outcome.
-                |
-                */
-
-                $locked->update([
-                    'status' =>
-                        'Finalized',
-
-                    'agreement_details' =>
-                        $data[
-                            'agreement_details'
-                        ]
-                        ?? $locked
-                            ->agreement_details,
-
-                    'remarks' =>
-                        $data['remarks']
-                        ?? $locked->remarks,
-
-                    'finalized_by' =>
-                        $request
-                            ->user()
-                            ->id,
-
-                    'finalized_at' =>
-                        now(),
-                ]);
-
-                /*
-                |--------------------------------------------------------------------------
-                | Audit Trail
-                |--------------------------------------------------------------------------
-                */
-
-                AuditLogService::log(
-                    action:
-                        'settlement_finalized',
-
-                    module:
-                        'Settlement & Resolutions',
-
-                    description:
-                        'Finalized settlement for case '
-                        . $locked
-                            ->blotterCase()
-                            ->value(
-                                'reference_number'
-                            )
-                        . '.',
-
-                    auditable:
-                        $locked,
-
-                    oldValues:
-                        $old,
-
-                    newValues:
-                        $locked
-                            ->fresh()
-                            ->toArray()
-                );
-            }
-        );
-
-        return back()->with(
-            'success',
-            'Settlement finalized successfully.'
-        );
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Complete Case Resolution
-    |--------------------------------------------------------------------------
-    */
-
-    public function resolve(
-        Request $request,
-        CaseResolution $resolution
-    ) {
-        $this->ensureManager(
-            $request
-        );
-
-        if (
-            $resolution->status
-            !== 'Finalized'
-        ) {
-            return back()->withErrors([
-                'resolution' =>
-                    'Finalize the settlement before marking the case resolved.',
+                    'Only active settlement records may be completed.',
             ]);
         }
 
@@ -448,12 +222,6 @@ class SettlementResolutionController extends Controller
                 $resolution,
                 $request
             ) {
-                /*
-                |--------------------------------------------------------------------------
-                | Lock Settlement
-                |--------------------------------------------------------------------------
-                */
-
                 $locked =
                     CaseResolution::whereKey(
                         $resolution->id
@@ -461,21 +229,12 @@ class SettlementResolutionController extends Controller
                         ->lockForUpdate()
                         ->firstOrFail();
 
-                if (
-                    $locked->status
-                    !== 'Finalized'
-                ) {
+                if ($locked->status !== 'Active') {
                     abort(
                         409,
-                        'This settlement record is no longer awaiting resolution.'
+                        'This settlement record has already been completed.'
                     );
                 }
-
-                /*
-                |--------------------------------------------------------------------------
-                | Lock Parent Case
-                |--------------------------------------------------------------------------
-                */
 
                 $case =
                     BlotterCase::whereKey(
@@ -483,12 +242,6 @@ class SettlementResolutionController extends Controller
                     )
                         ->lockForUpdate()
                         ->firstOrFail();
-
-                /*
-                |--------------------------------------------------------------------------
-                | Capture Previous Values
-                |--------------------------------------------------------------------------
-                */
 
                 $oldResolutionStatus =
                     $locked->status;
@@ -510,13 +263,16 @@ class SettlementResolutionController extends Controller
 
                 /*
                 |--------------------------------------------------------------------------
-                | Resolve Settlement Record
+                | Complete Settlement Record
                 |--------------------------------------------------------------------------
                 */
 
                 $locked->update([
+                    'resolution_type' =>
+                        'Amicable Settlement',
+
                     'status' =>
-                        'Resolved',
+                        'Completed',
 
                     'resolved_by' =>
                         $request
@@ -529,16 +285,12 @@ class SettlementResolutionController extends Controller
 
                 /*
                 |--------------------------------------------------------------------------
-                | Synchronize Blotter Case
+                | Keep Parent Case Synchronized
                 |--------------------------------------------------------------------------
                 |
-                | Legacy status remains temporarily for compatibility.
-                |
-                | Current Stage:
-                |     Settled/Resolved
-                |
-                | Record Status:
-                |     Resolved
+                | The mediation outcome already resolves the case. This update
+                | keeps the legacy case status aligned while record_status
+                | remains the authoritative Open / Resolved / Closed value.
                 |
                 */
 
@@ -557,32 +309,26 @@ class SettlementResolutionController extends Controller
                         ?? now(),
                 ]);
 
-                $case->refresh();
                 $locked->refresh();
-
-                /*
-                |--------------------------------------------------------------------------
-                | Audit Trail
-                |--------------------------------------------------------------------------
-                */
+                $case->refresh();
 
                 AuditLogService::log(
                     action:
-                        'case_resolution_completed',
+                        'settlement_completed',
 
                     module:
                         'Settlement & Resolutions',
 
                     description:
-                        'Marked case '
+                        'Completed the amicable settlement for case '
                         . $case->reference_number
-                        . ' as resolved.',
+                        . '.',
 
                     auditable:
                         $locked,
 
                     oldValues: [
-                        'resolution_status' =>
+                        'settlement_status' =>
                             $oldResolutionStatus,
 
                         'case_status' =>
@@ -596,12 +342,12 @@ class SettlementResolutionController extends Controller
                     ],
 
                     newValues: [
-                        'resolution_status' =>
-                            'Resolved',
+                        'settlement_status' =>
+                            'Completed',
 
-                        /*
-                         * Legacy compatibility status.
-                         */
+                        'resolution_type' =>
+                            'Amicable Settlement',
+
                         'case_status' =>
                             CaseStatus::Resolved
                                 ->value,
@@ -614,7 +360,7 @@ class SettlementResolutionController extends Controller
                             RecordStatus::Resolved
                                 ->value,
 
-                        'resolved_at' =>
+                        'completed_at' =>
                             $locked->resolved_at,
 
                         'case_closed_at' =>
@@ -626,15 +372,9 @@ class SettlementResolutionController extends Controller
 
         return back()->with(
             'success',
-            'Case marked as resolved.'
+            'Amicable settlement completed successfully.'
         );
     }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Manager Authorization
-    |--------------------------------------------------------------------------
-    */
 
     private function ensureManager(
         Request $request

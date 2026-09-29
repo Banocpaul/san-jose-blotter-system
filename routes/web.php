@@ -411,25 +411,14 @@ Route::middleware('auth')->group(function () {
         );
 
     Route::patch(
-        '/settlement-resolutions/{resolution}/finalize',
-        [SettlementResolutionController::class, 'finalize']
+        '/settlement-resolutions/{resolution}/complete',
+        [SettlementResolutionController::class, 'complete']
     )
         ->middleware(
             'role:barangay_captain,secretary'
         )
         ->name(
-            'settlements.finalize'
-        );
-
-    Route::patch(
-        '/settlement-resolutions/{resolution}/resolve',
-        [SettlementResolutionController::class, 'resolve']
-    )
-        ->middleware(
-            'role:barangay_captain,secretary'
-        )
-        ->name(
-            'settlements.resolve'
+            'settlements.complete'
         );
 
 

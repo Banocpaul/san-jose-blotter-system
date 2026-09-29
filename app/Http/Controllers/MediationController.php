@@ -2422,19 +2422,13 @@ class MediationController extends Controller
 
                             'resolution_type' =>
 
-                                ($lockedSession->proceeding_type
-
-                                    === 'Pangkat Conciliation')
-
-                                    ? 'Pangkat Settlement'
-
-                                    : 'Amicable Settlement',
+                                'Amicable Settlement',
 
 
 
                             'status' =>
 
-                                'Pending',
+                                'Active',
 
 
 
