@@ -15,6 +15,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\WitnessController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\BackupRestoreController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -882,6 +883,67 @@ Route::middleware('auth')->group(function () {
             )->name(
                 'audit.print'
             );
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Backup & Restore
+            |--------------------------------------------------------------------------
+            */
+
+            Route::get(
+                '/backup-restore',
+                [
+                    BackupRestoreController::class,
+                    'index'
+                ]
+            )->name(
+                'backup.index'
+            );
+
+            Route::get(
+                '/backup-restore/download',
+                [
+                    BackupRestoreController::class,
+                    'download'
+                ]
+            )->name(
+                'backup.download'
+            );
+
+            Route::post(
+                '/backup-restore/validate',
+                [
+                    BackupRestoreController::class,
+                    'validateUpload'
+                ]
+            )->name(
+                'backup.validate'
+            );
+
+            Route::post(
+                '/backup-restore/restore',
+                [
+                    BackupRestoreController::class,
+                    'restore'
+                ]
+            )->name(
+                'backup.restore'
+            );
+
+            Route::get(
+                '/backup-restore/safety/{token}',
+                [
+                    BackupRestoreController::class,
+                    'downloadSafety'
+                ]
+            )
+                ->whereUuid(
+                    'token'
+                )
+                ->name(
+                    'backup.safety-download'
+                );
 
         });
 

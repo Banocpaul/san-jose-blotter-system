@@ -171,7 +171,7 @@
     <div class="sidebar-brand">
 
         <div class="brand-kicker">
-            Barangay Records • Official
+            Barangay Records â€¢ Official
         </div>
 
         <div class="brand-title">
@@ -475,6 +475,27 @@
                 </span>
 
                 Audit Logs
+
+            </a>
+
+
+            <a
+                href="{{ route('admin.backup.index') }}"
+                class="sidebar-link
+                {{
+                    request()->routeIs(
+                        'admin.backup.*'
+                    )
+                        ? 'active'
+                        : ''
+                }}"
+            >
+
+                <span class="nav-icon">
+                    <i class="bi bi-database-check"></i>
+                </span>
+
+                Backup & Restore
 
             </a>
 
