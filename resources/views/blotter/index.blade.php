@@ -6,19 +6,43 @@
 @section('content')
 
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+
     <div>
-        <h3 class="mb-1">Blotter Records</h3>
+
+        <h3 class="mb-1">
+            Blotter Records
+        </h3>
 
         <div class="text-muted">
             Read-only registry of recorded complaints and incidents.
-            Case workflow changes are handled in Case Management.
+            Existing records are managed through Case Management.
         </div>
+
     </div>
 
-    <span class="badge text-bg-light border px-3 py-2">
-        <i class="bi bi-eye me-1"></i>
-        View Only
-    </span>
+
+    <div class="d-flex flex-wrap align-items-center gap-2">
+
+        @can('create', \App\Models\BlotterCase::class)
+
+            <a
+                href="{{ route('blotter.create') }}"
+                class="btn btn-primary"
+            >
+                <i class="bi bi-file-earmark-plus me-1"></i>
+                Add Blotter Record
+            </a>
+
+        @endcan
+
+
+        <span class="badge text-bg-light border px-3 py-2">
+            <i class="bi bi-eye me-1"></i>
+            Existing Records: View Only
+        </span>
+
+    </div>
+
 </div>
 
 

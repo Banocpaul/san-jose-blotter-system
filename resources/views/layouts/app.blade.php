@@ -90,17 +90,6 @@
             true
         );
 
-    $canCreateBlotter =
-        in_array(
-            $roleSlug,
-            [
-                'barangay_captain',
-                'secretary',
-                'staff',
-            ],
-            true
-        );
-
     $canViewAnalytics =
         in_array(
             $roleSlug,
@@ -248,95 +237,50 @@
         @endif
 
 
-        @if($canManageResidents)
+        @if($canManageResidents || $canViewBlotter)
 
             <div class="sidebar-section">
                 Records
             </div>
 
-            <a
-                href="{{ route('residents.index') }}"
-                class="sidebar-link
-                {{
-                    request()->routeIs(
-                        'residents.index',
-                        'residents.create',
-                        'residents.show',
-                        'residents.edit'
-                    )
-                        ? 'active'
-                        : ''
-                }}"
-            >
 
-                <span class="nav-icon">
-                    <i class="bi bi-person-vcard"></i>
-                </span>
-
-                People Directory
-
-            </a>
-
-        @endif
-
-
-        @if($canViewBlotter)
-
-            <div class="sidebar-section">
-                Case Management
-            </div>
-
-            <a
-                href="{{ route('blotter.index') }}"
-                class="sidebar-link
-                {{
-                    request()->routeIs(
-                        'blotter.index',
-                        'blotter.show',
-                        'blotter.edit'
-                    )
-                        ? 'active'
-                        : ''
-                }}"
-            >
-
-                <span class="nav-icon">
-                    <i class="bi bi-journal-text"></i>
-                </span>
-
-                Blotter Records
-
-            </a>
-
-
-            <a
-                href="{{ route('cases.index') }}"
-                class="sidebar-link
-                {{
-                    request()->routeIs(
-                        'cases.*'
-                    )
-                        ? 'active'
-                        : ''
-                }}"
-            >
-
-                <span class="nav-icon">
-                    <i class="bi bi-kanban"></i>
-                </span>
-
-                Case Management
-
-            </a>
-
-
-            @if($canCreateBlotter)
+            @if($canManageResidents)
 
                 <a
-                    href="{{ route('blotter.create') }}"
+                    href="{{ route('residents.index') }}"
                     class="sidebar-link
                     {{
                         request()->routeIs(
+                            'residents.index',
+                            'residents.create',
+                            'residents.show',
+                            'residents.edit'
+                        )
+                            ? 'active'
+                            : ''
+                    }}"
+                >
+
+                    <span class="nav-icon">
+                        <i class="bi bi-person-vcard"></i>
+                    </span>
+
+                    People Directory
+
+                </a>
+
+            @endif
+
+
+            @if($canViewBlotter)
+
+                <a
+                    href="{{ route('blotter.index') }}"
+                    class="sidebar-link
+                    {{
+                        request()->routeIs(
+                            'blotter.index',
+                            'blotter.show',
                             'blotter.create'
                         )
                             ? 'active'
@@ -345,10 +289,10 @@
                 >
 
                     <span class="nav-icon">
-                        <i class="bi bi-file-earmark-plus"></i>
+                        <i class="bi bi-journal-text"></i>
                     </span>
 
-                    New Blotter Case
+                    Blotter Records
 
                 </a>
 
@@ -357,69 +301,103 @@
         @endif
 
 
-        @if($canAccessMediation)
+        @if($canViewBlotter || $canAccessMediation)
 
-            <a
-                href="{{ route('lupon.index') }}"
-                class="sidebar-link
-                {{
-                    request()->routeIs(
-                        'lupon.*'
-                    )
-                        ? 'active'
-                        : ''
-                }}"
-            >
-
-                <span class="nav-icon">
-                    <i class="bi bi-people"></i>
-                </span>
-
-                Lupon & Mediation
-
-            </a>
+            <div class="sidebar-section">
+                Case Workflow
+            </div>
 
 
-            <a
-                href="{{ route('hearings.index') }}"
-                class="sidebar-link
-                {{
-                    request()->routeIs(
-                        'hearings.*'
-                    )
-                        ? 'active'
-                        : ''
-                }}"
-            >
+            @if($canViewBlotter)
 
-                <span class="nav-icon">
-                    <i class="bi bi-calendar-event"></i>
-                </span>
+                <a
+                    href="{{ route('cases.index') }}"
+                    class="sidebar-link
+                    {{
+                        request()->routeIs(
+                            'cases.*'
+                        )
+                            ? 'active'
+                            : ''
+                    }}"
+                >
 
-                Hearing Schedules
+                    <span class="nav-icon">
+                        <i class="bi bi-kanban"></i>
+                    </span>
 
-            </a>
+                    Case Management
+
+                </a>
+
+            @endif
 
 
-            <a
-                href="{{ route('settlements.index') }}"
-                class="sidebar-link
-                {{
-                    request()->routeIs(
-                        'settlements.*'
-                    )
-                        ? 'active'
-                        : ''
-                }}"
-            >
+            @if($canAccessMediation)
 
-                <span class="nav-icon">
-                    <i class="bi bi-file-earmark-check"></i>
-                </span>
+                <a
+                    href="{{ route('lupon.index') }}"
+                    class="sidebar-link
+                    {{
+                        request()->routeIs(
+                            'lupon.*'
+                        )
+                            ? 'active'
+                            : ''
+                    }}"
+                >
 
-                Settlement & Resolutions
+                    <span class="nav-icon">
+                        <i class="bi bi-people"></i>
+                    </span>
 
-            </a>
+                    Lupon & Mediation
+
+                </a>
+
+
+                <a
+                    href="{{ route('hearings.index') }}"
+                    class="sidebar-link
+                    {{
+                        request()->routeIs(
+                            'hearings.*'
+                        )
+                            ? 'active'
+                            : ''
+                    }}"
+                >
+
+                    <span class="nav-icon">
+                        <i class="bi bi-calendar-event"></i>
+                    </span>
+
+                    Hearing Schedules
+
+                </a>
+
+
+                <a
+                    href="{{ route('settlements.index') }}"
+                    class="sidebar-link
+                    {{
+                        request()->routeIs(
+                            'settlements.*'
+                        )
+                            ? 'active'
+                            : ''
+                    }}"
+                >
+
+                    <span class="nav-icon">
+                        <i class="bi bi-file-earmark-check"></i>
+                    </span>
+
+                    Settlement & Resolutions
+
+                </a>
+
+            @endif
 
         @endif
 
