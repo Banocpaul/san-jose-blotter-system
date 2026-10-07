@@ -37,6 +37,14 @@ enum CaseStage: string
         };
     }
 
+    public function label(): string
+    {
+        return match ($this) {
+            self::Closed => 'Dismissed',
+            default => $this->value,
+        };
+    }
+
     public function badgeClass(): string
     {
         return match ($this) {
