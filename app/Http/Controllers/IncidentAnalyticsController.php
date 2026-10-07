@@ -188,7 +188,13 @@ class IncidentAnalyticsController extends Controller
         |--------------------------------------------------------------------------
         */
 
+        /*
+         * Use the base query builder here instead of an Eloquent collection.
+         * BlotterCase casts record_status to a PHP enum; analytics grouping
+         * needs the raw database string so it can safely be used as a key.
+         */
         $statusByTypeRows = (clone $query)
+            ->toBase()
             ->join(
                 'incident_types',
                 'incident_types.id',
@@ -198,10 +204,8 @@ class IncidentAnalyticsController extends Controller
             ->select([
                 'incident_types.id',
                 'incident_types.name',
+                'blotter_cases.record_status',
             ])
-            ->selectRaw(
-                'blotter_cases.record_status AS status_value'
-            )
             ->selectRaw('COUNT(*) AS total')
             ->groupBy(
                 'incident_types.id',
@@ -216,7 +220,7 @@ class IncidentAnalyticsController extends Controller
             ->map(function ($rows, $name) {
                 $counts = $rows->mapWithKeys(
                     fn ($row) => [
-                        (string) $row->status_value =>
+                        (string) $row->record_status =>
                             (int) $row->total,
                     ]
                 );
