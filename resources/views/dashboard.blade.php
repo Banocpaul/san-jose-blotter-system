@@ -64,10 +64,11 @@
             minmax(0, 1fr)
             minmax(210px, 290px);
 
-        gap: 22px;
+        gap: 16px;
+        align-items: center;
 
-        margin-bottom: 24px;
-        padding: 32px;
+        margin-bottom: 18px;
+        padding: 16px 22px;
 
         border:
             1px solid var(--dash-ink);
@@ -133,7 +134,7 @@
 
         gap: 7px;
 
-        margin-bottom: 12px;
+        margin-bottom: 6px;
 
         color:
             var(--dash-blue-dark);
@@ -167,9 +168,9 @@
 
         font-size:
             clamp(
-                30px,
-                4vw,
-                52px
+                24px,
+                3vw,
+                36px
             );
 
         font-weight: 700;
@@ -183,27 +184,27 @@
         max-width: 650px;
 
         margin:
-            16px
+            7px
             0
             0;
 
         color:
             var(--dash-muted);
 
-        font-size: 12px;
-        line-height: 1.75;
+        font-size: 10px;
+        line-height: 1.45;
     }
 
     .dashboard-date {
         position: relative;
 
-        min-height: 150px;
+        min-height: 96px;
 
         display: flex;
         flex-direction: column;
         justify-content: space-between;
 
-        padding: 20px;
+        padding: 12px 14px;
 
         border:
             1px solid var(--dash-ink);
@@ -230,8 +231,8 @@
     .dashboard-date::before {
         content: "SJ";
 
-        width: 38px;
-        height: 38px;
+        width: 30px;
+        height: 30px;
 
         display: grid;
         place-items: center;
@@ -239,7 +240,7 @@
         border:
             1px solid rgba(255, 255, 255, .14);
 
-        border-radius: 12px;
+        border-radius: 9px;
 
         color:
             #ffffff;
@@ -261,7 +262,7 @@
         color:
             #ffffff;
 
-        font-size: 17px;
+        font-size: 14px;
         font-weight: 600;
 
         line-height: 1.1;
@@ -1011,7 +1012,7 @@
         }
 
         .dashboard-date {
-            min-height: 118px;
+            min-height: 90px;
         }
     }
 
@@ -1019,11 +1020,11 @@
         max-width: 767.98px
     ) {
         .dashboard-intro {
-            padding: 24px;
+            padding: 16px 18px;
         }
 
         .dashboard-intro h1 {
-            font-size: 34px;
+            font-size: 28px;
         }
 
         .dashboard-date {
@@ -1035,13 +1036,13 @@
         max-width: 575.98px
     ) {
         .dashboard-intro {
-            padding: 20px;
+            padding: 14px 16px;
 
             border-radius: 18px;
         }
 
         .dashboard-intro h1 {
-            font-size: 30px;
+            font-size: 25px;
         }
 
         .metric-card-lux {
