@@ -73,7 +73,7 @@
 </div>
 
 
-<div class="card shadow-sm mb-4">
+<div class="card shadow-sm mb-4 directory-filter-card">
 
     <div class="card-body">
 
@@ -89,13 +89,26 @@
                     Search
                 </label>
 
-                <input
-                    type="text"
-                    name="search"
-                    value="{{ request('search') }}"
-                    class="form-control"
-                    placeholder="Person ID, name, contact, street, or sitio"
+                <div
+                    class="position-relative"
+                    data-directory-search
+                    data-search-url="{{ route('residents.search', ['scope' => 'directory']) }}"
                 >
+                    <input
+                        type="search"
+                        name="search"
+                        value="{{ request('search') }}"
+                        class="form-control"
+                        placeholder="Search or select a person..."
+                        autocomplete="off"
+                        data-directory-search-input
+                    >
+
+                    <div
+                        class="list-group position-absolute start-0 end-0 mt-1 shadow-sm d-none"
+                        data-directory-search-results
+                    ></div>
+                </div>
 
             </div>
 
@@ -343,5 +356,31 @@
     @endif
 
 </div>
+
+
+<style>
+    .directory-filter-card {
+        overflow: visible !important;
+        position: relative;
+        z-index: 40;
+    }
+
+    .directory-filter-card .card-body {
+        overflow: visible !important;
+    }
+
+    [data-directory-search-results] {
+        z-index: 2050 !important;
+        max-height: 340px;
+        overflow-y: auto;
+        background: #ffffff;
+        border: 1px solid #d9dee8;
+        border-radius: 10px;
+    }
+
+    [data-directory-search-results] .list-group-item {
+        padding: 0.8rem 0.9rem;
+    }
+</style>
 
 @endsection
