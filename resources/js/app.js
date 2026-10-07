@@ -390,3 +390,198 @@ document.addEventListener('DOMContentLoaded', function () {
 
     pickers.forEach(setupPicker);
 });
+
+document.addEventListener('DOMContentLoaded', function () {
+    const directorySearch = document.querySelector('[data-directory-search]');
+
+    if (! directorySearch) {
+        return;
+    }
+
+    const searchUrl = directorySearch.dataset.searchUrl;
+    const searchInput = directorySearch.querySelector('[data-directory-search-input]');
+    const resultsBox = directorySearch.querySelector('[data-directory-search-results]');
+    const classificationSelect = document.querySelector('select[name="classification"]');
+    let people = [];
+    let loaded = false;
+    let loading = false;
+
+    function escapeHtml(value) {
+        const element = document.createElement('div');
+        element.textContent = value ?? '';
+        return element.innerHTML;
+    }
+
+    function hideResults() {
+        resultsBox.classList.add('d-none');
+    }
+
+    function matchesSearch(person, term) {
+        if (! term) {
+            return true;
+        }
+
+        const haystack = [
+            person.name,
+            person.code,
+            person.contact,
+            person.classification,
+            person.active ? 'active' : 'inactive',
+        ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+
+        return haystack.includes(term);
+    }
+
+    function renderResults() {
+        const term = searchInput.value.trim().toLowerCase();
+        const classification = classificationSelect?.value || '';
+
+        const matches = people.filter(person => {
+            const classificationMatches =
+                ! classification
+                || person.classification === classification;
+
+            return classificationMatches && matchesSearch(person, term);
+        });
+
+        resultsBox.innerHTML = '';
+
+        if (! matches.length) {
+            resultsBox.innerHTML = `
+                <div class="list-group-item text-muted small">
+                    No matching person found.
+                </div>
+            `;
+            resultsBox.classList.remove('d-none');
+            return;
+        }
+
+        matches.forEach(person => {
+            const button = document.createElement('button');
+            const statusLabel = person.active ? 'Active' : 'Inactive';
+
+            button.type = 'button';
+            button.className = 'list-group-item list-group-item-action';
+            button.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start gap-3">
+                    <div class="min-w-0">
+                        <div class="fw-semibold">${escapeHtml(person.name)}</div>
+                        <div class="small text-muted">
+                            ${escapeHtml(person.code)}
+                            ${person.contact ? ' • ' + escapeHtml(person.contact) : ''}
+                        </div>
+                    </div>
+                    <div class="d-flex gap-1 flex-shrink-0">
+                        <span class="badge text-bg-primary">
+                            ${escapeHtml(person.classification)}
+                        </span>
+                        <span class="badge ${person.active ? 'text-bg-success' : 'text-bg-warning'}">
+                            ${statusLabel}
+                        </span>
+                    </div>
+                </div>
+            `;
+
+            button.addEventListener('click', function () {
+                searchInput.value = person.code;
+                hideResults();
+
+                const form = searchInput.closest('form');
+
+                if (form) {
+                    form.requestSubmit();
+                }
+            });
+
+            resultsBox.appendChild(button);
+        });
+
+        resultsBox.classList.remove('d-none');
+    }
+
+    async function loadPeople() {
+        if (loaded || loading) {
+            return;
+        }
+
+        loading = true;
+        resultsBox.innerHTML = `
+            <div class="list-group-item text-muted small">
+                Loading people...
+            </div>
+        `;
+        resultsBox.classList.remove('d-none');
+
+        try {
+            const response = await fetch(searchUrl, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            if (! response.ok) {
+                throw new Error('Unable to load People Directory.');
+            }
+
+            const payload = await response.json();
+            people = payload.data || [];
+            loaded = true;
+            renderResults();
+        } catch (error) {
+            console.error(error);
+            resultsBox.innerHTML = `
+                <div class="list-group-item text-danger small">
+                    Unable to load the people list. Please try again.
+                </div>
+            `;
+            resultsBox.classList.remove('d-none');
+        } finally {
+            loading = false;
+        }
+    }
+
+    searchInput.addEventListener('focus', async function () {
+        await loadPeople();
+
+        if (loaded) {
+            renderResults();
+        }
+    });
+
+    searchInput.addEventListener('click', async function () {
+        await loadPeople();
+
+        if (loaded) {
+            renderResults();
+        }
+    });
+
+    searchInput.addEventListener('input', function () {
+        if (loaded) {
+            renderResults();
+        }
+    });
+
+    classificationSelect?.addEventListener('change', function () {
+        if (loaded && ! resultsBox.classList.contains('d-none')) {
+            renderResults();
+        }
+    });
+
+    document.addEventListener('click', function (event) {
+        if (! directorySearch.contains(event.target)) {
+            hideResults();
+        }
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+            hideResults();
+        }
+    });
+});
+
