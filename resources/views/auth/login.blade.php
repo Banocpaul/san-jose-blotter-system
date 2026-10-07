@@ -17,23 +17,17 @@
         rel="stylesheet"
     >
 
-    <style>
-        body {
-            background: #f4f6f9;
-        }
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap"
+        rel="stylesheet"
+    >
 
-        .login-wrapper {
-            min-height: 100vh;
-        }
-
-        .login-card {
-            width: 100%;
-            max-width: 430px;
-        }
-    </style>
+    @vite(['resources/css/app.css'])
 </head>
 
-<body>
+<body class="login-page">
 
 <div
     class="container login-wrapper d-flex justify-content-center align-items-center"
@@ -41,20 +35,21 @@
 
     <div class="card shadow-sm login-card">
 
-        <div class="card-body p-5">
+        <div class="login-brand">
+            @include('partials.brand')
+        </div>
 
-            <div class="text-center mb-4">
-                <h3 class="fw-bold">
-                    Barangay San Jose
-                </h3>
+        <div class="card-body login-card-body">
 
+            <div class="login-intro mb-4">
+                <h1 class="login-title">Sign in</h1>
                 <p class="text-muted mb-0">
-                    Blotter Management System
+                    Access the Blotter Management System.
                 </p>
             </div>
 
             @if($errors->any())
-                <div class="alert alert-danger">
+                <div class="alert alert-danger" role="alert">
                     {{ $errors->first() }}
                 </div>
             @endif
@@ -82,6 +77,7 @@
                         value="{{ old('username') }}"
                         class="form-control"
                         required
+                        autocomplete="username"
                         autofocus
                     >
 
@@ -100,6 +96,7 @@
                         id="password"
                         type="password"
                         name="password"
+                        autocomplete="current-password"
                         class="form-control"
                         required
                     >

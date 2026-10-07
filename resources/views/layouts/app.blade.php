@@ -169,19 +169,7 @@
 >
 
     <div class="sidebar-brand">
-
-        <div class="brand-kicker">
-            Barangay Records â€¢ Official
-        </div>
-
-        <div class="brand-title">
-            Barangay San Jose
-        </div>
-
-        <div class="brand-subtitle">
-            Blotter Management System
-        </div>
-
+        @include('partials.brand')
     </div>
 
 
