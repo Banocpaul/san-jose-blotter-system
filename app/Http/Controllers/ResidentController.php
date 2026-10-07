@@ -86,17 +86,31 @@ class ResidentController extends Controller
         $id = $request->integer('id');
         $term = trim((string) $request->input('q', ''));
 
-        $query = Resident::active()
-            ->select([
-                'id',
-                'resident_code',
-                'first_name',
-                'middle_name',
-                'last_name',
-                'suffix',
-                'contact_number',
-                'classification',
-            ]);
+        $scope =
+            $request
+                ->string('scope')
+                ->toString();
+
+        /*
+         * Normal case pickers only expose active people.
+         * The People Directory search dropdown may browse every person,
+         * including inactive records, so staff can still locate them.
+         */
+        $query =
+            ($scope === 'directory'
+                ? Resident::query()
+                : Resident::active())
+                ->select([
+                    'id',
+                    'resident_code',
+                    'first_name',
+                    'middle_name',
+                    'last_name',
+                    'suffix',
+                    'contact_number',
+                    'classification',
+                    'is_active',
+                ]);
 
         if ($id > 0) {
             $query->whereKey($id);
@@ -147,6 +161,8 @@ class ResidentController extends Controller
                 'name' => $person->full_name,
                 'contact' => $person->contact_number,
                 'classification' => $person->classification ?: 'Resident',
+                'active' => (bool) $person->is_active,
+                'view_url' => route('residents.show', $person),
             ])
             ->values();
 
