@@ -198,8 +198,10 @@ class IncidentAnalyticsController extends Controller
             ->select([
                 'incident_types.id',
                 'incident_types.name',
-                'blotter_cases.record_status',
             ])
+            ->selectRaw(
+                'blotter_cases.record_status AS status_value'
+            )
             ->selectRaw('COUNT(*) AS total')
             ->groupBy(
                 'incident_types.id',
@@ -212,7 +214,12 @@ class IncidentAnalyticsController extends Controller
         $statusByType = $statusByTypeRows
             ->groupBy('name')
             ->map(function ($rows, $name) {
-                $counts = $rows->pluck('total', 'record_status');
+                $counts = $rows->mapWithKeys(
+                    fn ($row) => [
+                        (string) $row->status_value =>
+                            (int) $row->total,
+                    ]
+                );
 
                 return [
                     'label' => $name,
