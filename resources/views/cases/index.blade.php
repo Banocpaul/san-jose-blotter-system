@@ -68,7 +68,7 @@
                         <div
                             class="text-muted small mb-2"
                         >
-                            {{ $stage->value }}
+                            {{ $stage->label() }}
                         </div>
 
                         <div
@@ -163,13 +163,13 @@
                     @foreach($stages as $stage)
 
                         <option
-                            value="{{ $stage->value }}"
+                            value="{{ $stage->label() }}"
                             @selected(
                                 request('stage')
                                 === $stage->value
                             )
                         >
-                            {{ $stage->value }}
+                            {{ $stage->label() }}
                         </option>
 
                     @endforeach
@@ -475,7 +475,7 @@
                                 <span
                                     class="badge {{ $caseStage->badgeClass() }}"
                                 >
-                                    {{ $caseStage->value }}
+                                    {{ $caseStage->label() }}
                                 </span>
 
                             @else
