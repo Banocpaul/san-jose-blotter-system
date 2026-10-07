@@ -15,6 +15,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\WitnessController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\IncidentAnalyticsController;
 use App\Http\Controllers\BackupRestoreController;
 use Illuminate\Support\Facades\Route;
 
@@ -91,6 +92,18 @@ Route::middleware('auth')->group(function () {
         ->name(
             'analytics.index'
         );
+
+    Route::get(
+        '/incident-analytics',
+        [IncidentAnalyticsController::class, 'index']
+    )
+        ->middleware(
+            'role:barangay_captain,secretary'
+        )
+        ->name(
+            'incident-analytics.index'
+        );
+
 
 
     /*
