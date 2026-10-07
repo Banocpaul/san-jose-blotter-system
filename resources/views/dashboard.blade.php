@@ -1073,31 +1073,30 @@
 
         <p class="dashboard-intro-text">
 
-            @if(
-                in_array(
-                    $roleSlug,
-                    [
-                        'barangay_captain',
-                        'secretary'
-                    ],
-                    true
-                )
-            )
+            @if($roleSlug === 'barangay_captain')
 
-                A concise view of residents, cases, investigations
-                and mediation activity across Barangay San Jose.
+                Executive overview of case volume, resolution performance,
+                hearings, and records requiring management attention.
+
+            @elseif($roleSlug === 'secretary')
+
+                Operational overview of current cases, workflow stages,
+                hearings, and records requiring coordination.
 
             @elseif($roleSlug === 'staff')
 
-                Your current resident and blotter encoding activity.
+                Daily encoding and case-processing overview focused on new
+                records, active workflow, and cases that still need action.
 
             @elseif($roleSlug === 'councilor')
 
-                Cases currently assigned to you for investigation.
+                Your assigned investigation workload, active assessments,
+                and cases that still require your action.
 
             @elseif($roleSlug === 'lupon')
 
-                Your assigned mediation cases and scheduled hearings.
+                Your mediation workload, scheduled proceedings,
+                and unresolved cases assigned to you.
 
             @else
 
@@ -1124,275 +1123,152 @@
 
 
 {{-- ========================================================= --}}
-{{-- CAPTAIN / SECRETARY --}}
+{{-- ROLE-SPECIFIC DASHBOARD METRICS --}}
 {{-- ========================================================= --}}
 
-@if(
-    in_array(
-        $roleSlug,
-        [
-            'barangay_captain',
-            'secretary'
-        ],
-        true
-    )
-)
+@if($roleSlug === 'barangay_captain')
 
     <div class="row g-3 metric-grid">
 
         @php
-            $metrics = [
-                [
-                    'label' => 'Active People',
-                    'value' => $totalResidents ?? 0,
-                    'icon' => 'bi-people',
-                    'route' => route('residents.index'),
-                    'note' => 'Open People Directory',
-                ],
-                [
-                    'label' => 'Total Cases',
-                    'value' => $totalCases ?? 0,
-                    'icon' => 'bi-folder2',
-                    'route' => route('cases.index'),
-                    'note' => 'Open Case Management',
-                ],
-                [
-                    'label' => 'Open Records',
-                    'value' => $openCases ?? 0,
-                    'icon' => 'bi-folder2-open',
-                    'route' => route('cases.index', ['record_status' => 'Open']),
-                    'note' => 'Cases still being processed',
-                ],
-                [
-                    'label' => 'New',
-                    'value' => $newCases ?? 0,
-                    'icon' => 'bi-file-earmark-plus',
-                    'route' => route('cases.index', ['stage' => 'New']),
-                    'note' => 'Newly recorded cases',
-                ],
-                [
-                    'label' => 'Under Assessment',
-                    'value' => $underAssessmentCases ?? 0,
-                    'icon' => 'bi-search',
-                    'route' => route('cases.index', ['stage' => 'Under Assessment']),
-                    'note' => 'Cases under assessment',
-                ],
-                [
-                    'label' => 'For Mediation',
-                    'value' => $forMediationCases ?? 0,
-                    'icon' => 'bi-chat-square-text',
-                    'route' => route('cases.index', ['stage' => 'For Mediation']),
-                    'note' => 'Cases awaiting mediation',
-                ],
-                [
-                    'label' => 'For Pangkat/Conciliation',
-                    'value' => $forPangkatCases ?? 0,
-                    'icon' => 'bi-people',
-                    'route' => route('cases.index', ['stage' => 'For Pangkat/Conciliation']),
-                    'note' => 'Cases in Pangkat proceedings',
-                ],
-                [
-                    'label' => 'Scheduled Hearings',
-                    'value' => $scheduledHearings ?? 0,
-                    'icon' => 'bi-calendar3',
-                    'route' => route('hearings.index'),
-                    'note' => 'Active hearing schedules',
-                ],
-                [
-                    'label' => 'Resolved Records',
-                    'value' => $resolvedRecordCases ?? 0,
-                    'icon' => 'bi-check2-circle',
-                    'route' => route('cases.index', ['record_status' => 'Resolved']),
-                    'note' => 'Successfully resolved records',
-                ],
-                [
-                    'label' => 'Closed Records',
-                    'value' => $closedCases,
-                    'icon' => 'bi-archive',
-                    'route' => route('cases.index', ['record_status' => 'Closed']),
-                    'note' => 'Closed barangay-level records',
-                ],
+            $captainMetrics = [
+                ['Total Cases', $totalCases ?? 0, 'bi-folder2', route('cases.index'), 'All recorded cases'],
+                ['Open Cases', $openCases ?? 0, 'bi-folder2-open', route('cases.index', ['record_status' => 'Open']), 'Currently in process'],
+                ['Resolved Cases', $resolvedRecordCases ?? 0, 'bi-check2-circle', route('cases.index', ['record_status' => 'Resolved']), 'Successfully resolved'],
+                ['Dismissed / Closed', $closedRecordCases ?? 0, 'bi-archive', route('cases.index', ['record_status' => 'Closed']), 'Formally closed records'],
+                ['Resolution Rate', $resolutionRate ?? 0, 'bi-percent', route('analytics.index'), 'Resolved out of total', true],
+                ['Requiring Action', $casesRequiringAction ?? 0, 'bi-exclamation-circle', route('cases.index', ['record_status' => 'Open']), 'Open cases in active workflow'],
             ];
         @endphp
 
-        @foreach($metrics as $metric)
-
-            <div class="col-sm-6 col-xl-3">
-
+        @foreach($captainMetrics as $metric)
+            <div class="col-sm-6 col-xl-2">
                 <div class="metric-card-lux">
-
                     <div class="metric-top">
-
-                        <div class="metric-label-lux">
-                            {{ $metric['label'] }}
-                        </div>
-
-                        <div class="metric-icon-lux">
-                            <i class="bi {{ $metric['icon'] }}"></i>
-                        </div>
-
+                        <div class="metric-label-lux">{{ $metric[0] }}</div>
+                        <div class="metric-icon-lux"><i class="bi {{ $metric[2] }}"></i></div>
                     </div>
 
                     <div class="metric-number">
-                        {{ number_format($metric['value']) }}
+                        {{ !empty($metric[5]) ? number_format($metric[1], 1) . '%' : number_format($metric[1]) }}
                     </div>
 
                     <div class="metric-note">
-
-                        @if($metric['route'])
-
-                            <a href="{{ $metric['route'] }}">
-                                {{ $metric['note'] }}
-                                <i class="bi bi-arrow-right"></i>
-                            </a>
-
-                        @else
-
-                            {{ $metric['note'] }}
-
-                        @endif
-
+                        <a href="{{ $metric[3] }}">
+                            {{ $metric[4] }}
+                            <i class="bi bi-arrow-right"></i>
+                        </a>
                     </div>
-
                 </div>
-
             </div>
-
         @endforeach
 
     </div>
 
-@endif
-
-
-{{-- ========================================================= --}}
-{{-- STAFF --}}
-{{-- ========================================================= --}}
-
-@if($roleSlug === 'staff')
+@elseif($roleSlug === 'secretary')
 
     <div class="row g-3 metric-grid">
 
         @foreach([
-            ['Active People', $totalResidents ?? 0, 'bi-people'],
-            ['Total Cases', $totalCases ?? 0, 'bi-folder2'],
+            ['Open Cases', $openCases ?? 0, 'bi-folder2-open'],
             ['New', $newCases ?? 0, 'bi-file-earmark-plus'],
             ['Under Assessment', $underAssessmentCases ?? 0, 'bi-search'],
+            ['For Mediation', $forMediationCases ?? 0, 'bi-chat-square-text'],
+            ['Scheduled Hearings', $scheduledHearings ?? 0, 'bi-calendar3'],
+            ['Requiring Action', $casesRequiringAction ?? 0, 'bi-exclamation-circle'],
         ] as [$label, $value, $icon])
 
-            <div class="col-sm-6 col-xl-3">
-
+            <div class="col-sm-6 col-xl-2">
                 <div class="metric-card-lux">
-
                     <div class="metric-top">
-
-                        <div class="metric-label-lux">
-                            {{ $label }}
-                        </div>
-
-                        <div class="metric-icon-lux">
-                            <i class="bi {{ $icon }}"></i>
-                        </div>
-
+                        <div class="metric-label-lux">{{ $label }}</div>
+                        <div class="metric-icon-lux"><i class="bi {{ $icon }}"></i></div>
                     </div>
 
-                    <div class="metric-number">
-                        {{ number_format($value) }}
-                    </div>
-
+                    <div class="metric-number">{{ number_format($value) }}</div>
                 </div>
-
             </div>
 
         @endforeach
 
     </div>
 
-@endif
+@elseif($roleSlug === 'staff')
 
+    <div class="row g-3 metric-grid">
 
-{{-- ========================================================= --}}
-{{-- COUNCILOR --}}
-{{-- ========================================================= --}}
+        @foreach([
+            ['New Cases', $newCases ?? 0, 'bi-file-earmark-plus'],
+            ['Under Assessment', $underAssessmentCases ?? 0, 'bi-search'],
+            ['For Mediation', $forMediationCases ?? 0, 'bi-chat-square-text'],
+            ['Open Cases', $openCases ?? 0, 'bi-folder2-open'],
+            ['Requiring Action', $casesRequiringAction ?? 0, 'bi-exclamation-circle'],
+        ] as [$label, $value, $icon])
 
-@if($roleSlug === 'councilor')
+            <div class="col-sm-6 col-xl">
+                <div class="metric-card-lux">
+                    <div class="metric-top">
+                        <div class="metric-label-lux">{{ $label }}</div>
+                        <div class="metric-icon-lux"><i class="bi {{ $icon }}"></i></div>
+                    </div>
+
+                    <div class="metric-number">{{ number_format($value) }}</div>
+                </div>
+            </div>
+
+        @endforeach
+
+    </div>
+
+@elseif($roleSlug === 'councilor')
 
     <div class="row g-3 metric-grid">
 
         @foreach([
             ['My Assigned Cases', $assignedCases ?? 0, 'bi-briefcase'],
+            ['Open Assigned', $openCases ?? 0, 'bi-folder2-open'],
             ['Under Assessment', $underAssessmentCases ?? 0, 'bi-search'],
-            ['Open Records', $openCases ?? 0, 'bi-folder2-open'],
+            ['For Mediation', $forMediationCases ?? 0, 'bi-chat-square-text'],
+            ['Requiring Action', $casesRequiringAction ?? 0, 'bi-exclamation-circle'],
         ] as [$label, $value, $icon])
 
-            <div class="col-md-4">
-
+            <div class="col-sm-6 col-xl">
                 <div class="metric-card-lux">
-
                     <div class="metric-top">
-
-                        <div class="metric-label-lux">
-                            {{ $label }}
-                        </div>
-
-                        <div class="metric-icon-lux">
-                            <i class="bi {{ $icon }}"></i>
-                        </div>
-
+                        <div class="metric-label-lux">{{ $label }}</div>
+                        <div class="metric-icon-lux"><i class="bi {{ $icon }}"></i></div>
                     </div>
 
-                    <div class="metric-number">
-                        {{ number_format($value) }}
-                    </div>
-
+                    <div class="metric-number">{{ number_format($value) }}</div>
                 </div>
-
             </div>
 
         @endforeach
 
     </div>
 
-@endif
-
-
-{{-- ========================================================= --}}
-{{-- LUPON --}}
-{{-- ========================================================= --}}
-
-@if($roleSlug === 'lupon')
+@elseif($roleSlug === 'lupon')
 
     <div class="row g-3 metric-grid">
 
         @foreach([
             ['My Mediation Cases', $assignedCases ?? 0, 'bi-folder2'],
             ['For Mediation', $forMediationCases ?? 0, 'bi-chat-square-text'],
-            ['For Pangkat/Conciliation', $forPangkatCases ?? 0, 'bi-people'],
+            ['For Pangkat', $forPangkatCases ?? 0, 'bi-people'],
             ['Scheduled Hearings', $scheduledHearings ?? 0, 'bi-calendar3'],
+            ['Hearings Today', $todayHearings ?? 0, 'bi-calendar2-check'],
+            ['Completed Hearings', $completedHearings ?? 0, 'bi-check2-square'],
         ] as [$label, $value, $icon])
 
-            <div class="col-md-4">
-
+            <div class="col-sm-6 col-xl-2">
                 <div class="metric-card-lux">
-
                     <div class="metric-top">
-
-                        <div class="metric-label-lux">
-                            {{ $label }}
-                        </div>
-
-                        <div class="metric-icon-lux">
-                            <i class="bi {{ $icon }}"></i>
-                        </div>
-
+                        <div class="metric-label-lux">{{ $label }}</div>
+                        <div class="metric-icon-lux"><i class="bi {{ $icon }}"></i></div>
                     </div>
 
-                    <div class="metric-number">
-                        {{ number_format($value) }}
-                    </div>
-
+                    <div class="metric-number">{{ number_format($value) }}</div>
                 </div>
-
             </div>
 
         @endforeach
@@ -1654,7 +1530,7 @@
                                 $stageText =
                                     $caseStage instanceof
                                     \App\Enums\CaseStage
-                                        ? $caseStage->value
+                                        ? $caseStage->label()
                                         : ($caseStage ?? 'New');
 
                                 $stageClass =
