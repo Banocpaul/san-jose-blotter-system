@@ -222,6 +222,17 @@
 
             </a>
 
+            <a
+                href="{{ route('incident-analytics.index') }}"
+                class="sidebar-link {{ request()->routeIs('incident-analytics.*') ? 'active' : '' }}"
+            >
+                <span class="nav-icon">
+                    <i class="bi bi-graph-up-arrow"></i>
+                </span>
+
+                Incident Analytics
+            </a>
+
         @endif
 
 
