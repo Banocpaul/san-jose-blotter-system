@@ -1,12 +1,12 @@
 @extends('layouts.app')
 
-@section('title', 'Business Intelligence')
-@section('page-title', 'Business Intelligence')
+@section('title', 'Case Analytics & Insights')
+@section('page-title', 'Case Analytics & Insights')
 
 @section('content')
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
     <div>
-        <h3 class="mb-1">Business Intelligence</h3>
+        <h3 class="mb-1">Case Analytics &amp; Insights</h3>
         <p class="text-muted mb-0">Case operations, outcomes, and processing delays for Barangay San Jose.</p>
     </div>
     <div class="small text-muted text-md-end">
@@ -170,7 +170,7 @@
     .analytics-metric-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; font-weight: 700; color: var(--ink-muted); min-height: 2.2em; }
     .analytics-metric-value { font-size: clamp(1.25rem, 1.7vw, 1.9rem); line-height: 1.25; font-weight: 750; margin: .3rem 0 .5rem; overflow-wrap: anywhere; }
     .analytics-metric-description { color: var(--ink-muted); font-size: .72rem; }
-    .analytics-metric.metric-dark { background: #0d1b2d; color: #fff; }
+    .analytics-metric.metric-dark { background: #334155; color: #fff; }
     .analytics-metric.metric-blue { background: #2563eb; color: #fff; }
     .analytics-metric.metric-dark .analytics-metric-label, .analytics-metric.metric-dark .analytics-metric-description,
     .analytics-metric.metric-blue .analytics-metric-label, .analytics-metric.metric-blue .analytics-metric-description { color: #e0e9ff; }
@@ -234,14 +234,17 @@ document.addEventListener('DOMContentLoaded', function () {
                     const x = (chartArea.left + chartArea.right) / 2;
                     const y = (chartArea.top + chartArea.bottom) / 2;
                     const total = datasets[0].data.reduce((sum, value) => sum + (Number(value) || 0), 0);
-                    ctx.save(); ctx.textAlign = 'center'; ctx.fillStyle = '#0d1b2d';
+                    ctx.save(); ctx.textAlign = 'center'; ctx.fillStyle = '#334155';
                     ctx.font = '700 22px sans-serif'; ctx.fillText(total.toLocaleString(), x, y);
                     ctx.font = '12px sans-serif'; ctx.fillStyle = '#667085'; ctx.fillText('Cases', x, y + 20); ctx.restore();
                 },
             }] : [],
             options: {
                 responsive: true, maintainAspectRatio: false, indexAxis: horizontal ? 'y' : 'x',
-                plugins: { legend: { display: type === 'doughnut' || datasets.length > 1, position: 'bottom' } },
+                plugins: {
+                    legend: { display: type === 'doughnut' || datasets.length > 1, position: 'bottom' },
+                    tooltip: { callbacks: { afterLabel: context => days && rows[context.dataIndex].samples !== undefined ? `${rows[context.dataIndex].samples} resolved cases with valid dates` : '' } },
+                },
                 ...(type !== 'doughnut' ? { scales: {
                     x: { stacked, ...(horizontal ? { beginAtZero: true, ticks: { precision: days ? 1 : 0 } } : {}) },
                     y: { stacked, ...(!horizontal ? { beginAtZero: true, ticks: { precision: days ? 1 : 0 } } : {}) },

@@ -92,7 +92,7 @@
 @endif
 
 <div class="row g-4 mb-4">
-    <div class="col-xl-6">@include('analytics.partials.chart', ['id' => 'incidentTypeChart', 'title' => 'Incidents by Type', 'rows' => $incidentTypeDistribution])</div>
+    <div class="col-xl-6">@include('analytics.partials.chart', ['id' => 'incidentTypeChart', 'title' => 'Incident Type', 'chartDescription' => 'Actual incident types and the number of matching records for each type.', 'rows' => $incidentTypeDistribution, 'horizontal' => true, 'byType' => true, 'categoryLabel' => 'Incident Type'])</div>
     <div class="col-xl-6"><div class="card h-100">
         <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
             <strong>Incident Trend Over Time</strong>
@@ -108,22 +108,13 @@
             </div>
         </div>
         <div class="card-body">
-            <p class="text-muted small">Monthly counts {{ $selectedYear ? 'for '.$selectedYear.' · January to December' : 'across recorded years' }}. Current-year figures include incidents through today.</p>
-            <div class="incident-chart"><canvas id="monthlyTrendChart" role="img" aria-label="Monthly incident trend" data-analytics-chart data-type="line" data-rows="{{ $monthlyTrend->toJson() }}"></canvas></div>
-            <details class="mt-3"><summary class="small text-muted">View monthly counts</summary>
-                <div class="table-responsive"><table class="table table-sm mt-2"><thead><tr><th>Month</th><th class="text-end">Incidents</th></tr></thead><tbody>
-                @forelse($monthlyTrend as $month)
-                    <tr><td>{{ $month['label'] }}</td><td class="text-end">{{ number_format($month['total']) }}</td></tr>
-                @empty
-                    <tr><td colspan="2">No matching data.</td></tr>
-                @endforelse
-                </tbody></table></div>
-            </details>
+            <p class="text-muted small">Monthly counts by incident type {{ $selectedYear ? 'for '.$selectedYear.' · January to December' : 'across recorded years' }}. Current-year figures include incidents through today.</p>
+            @include('analytics.partials.chart-values', ['id' => 'monthlyTrendChart', 'title' => 'Monthly incidents by incident type', 'rows' => $monthlyTrend, 'series' => $incidentSeries->all(), 'chartType' => 'line', 'categoryLabel' => 'Month'])
         </div>
     </div></div>
-    <div class="col-xl-4">@include('analytics.partials.chart', ['id' => 'sitioChart', 'title' => 'Incidents Involving Sitio', 'chartDescription' => 'Complainant/respondent addresses; each case counts once per Sitio and may involve several Sitios.', 'rows' => $sitioDistribution, 'horizontal' => true])</div>
-    <div class="col-xl-4">@include('analytics.partials.chart', ['id' => 'dayOfWeekChart', 'title' => 'Incidents by Day of the Week', 'rows' => $dayOfWeek])</div>
-    <div class="col-xl-4">@include('analytics.partials.chart', ['id' => 'outcomeChart', 'title' => 'Resolution Outcome', 'chartDescription' => 'Each incident appears once, based on its current record status and workflow stage.', 'rows' => $outcomeDistribution, 'chartType' => 'doughnut'])</div>
+    <div class="col-xl-6">@include('analytics.partials.chart', ['id' => 'sitioChart', 'title' => 'Incidents Involving Sitio', 'chartDescription' => 'Complainant/respondent addresses; each case counts once per Sitio and may involve several Sitios.', 'rows' => $sitioDistribution, 'series' => $incidentSeries->all(), 'stacked' => true])</div>
+    <div class="col-xl-6">@include('analytics.partials.chart', ['id' => 'dayOfWeekChart', 'title' => 'Incidents by Day of the Week', 'chartDescription' => 'Each line shows one incident type, grouped by the actual incident date.', 'rows' => $dayOfWeek, 'series' => $incidentSeries->all(), 'chartType' => 'line'])</div>
+    <div class="col-xl-6">@include('analytics.partials.chart', ['id' => 'outcomeChart', 'title' => 'Resolution Outcome', 'chartDescription' => 'Each incident appears once, based on its current record status and workflow stage.', 'rows' => $outcomeDistribution, 'chartType' => 'doughnut'])</div>
 </div>
 
 <details class="card mb-4"><summary class="card-header"><strong>How the metrics are calculated</strong></summary><div class="card-body">
@@ -135,6 +126,7 @@
 </div></details>
 
 <div class="card mb-4"><div class="card-header"><strong>Resolution Time by Incident Type</strong></div>
+    <div class="card-body pb-2"><p class="text-muted small mb-0">Average elapsed days from report to resolution for resolved cases with valid dates. Unresolved cases have no completed resolution time and are excluded. The case count shows the sample behind each average.</p></div>
     <div class="table-responsive"><table class="table table-hover mb-0"><thead><tr><th>Incident Type</th><th>Usable Resolved Cases</th><th>Average Time</th></tr></thead><tbody>
         @forelse($resolutionByType as $row)
             <tr><td>{{ $row->label }}</td><td>{{ number_format($row->samples) }}</td><td>{{ number_format($row->avg_days, 1) }} days</td></tr>
@@ -153,7 +145,8 @@
     .incident-icon-green { color: #16794f; background: #ddf4e7; }
     .incident-icon-blue { color: #2563eb; background: #e8f0ff; }
     .incident-icon-amber { color: #b26a00; background: #fff2cb; }
-    .incident-chart, .analytics-chart { height: 300px; }
+    .incident-chart, .analytics-chart { height: 360px; }
+    @media (max-width: 575.98px) { .analytics-chart { height: 340px; } }
     .analytics-empty { min-height: 180px; display: grid; place-items: center; text-align: center; }
     #trend_year { width: auto; min-width: 100px; }
 </style>
@@ -172,32 +165,52 @@ document.addEventListener('DOMContentLoaded', function () {
         });
         return;
     }
-    const palette = ['#2563eb', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#eab308', '#64748b'];
+    const typeKeys = @json($incidentSeries->keys()->all());
+    const typeColor = key => {
+        const id = Number(key.replace('type_', '')) || 0;
+        return `hsl(${(id * 137.508 + 215) % 360}, 65%, 43%)`;
+    };
     const outcomeColors = ['#22c55e', '#2563eb', '#eab308', '#64748b', '#ef4444'];
     canvases.forEach(canvas => {
         const rows = JSON.parse(canvas.dataset.rows);
         const type = canvas.dataset.type;
         const horizontal = canvas.dataset.horizontal === 'true';
+        const stacked = canvas.dataset.stacked === 'true';
+        const series = JSON.parse(canvas.dataset.series);
+        const byType = canvas.dataset.byType === 'true';
+        const datasets = Object.entries(series).map(([key, label]) => ({
+            label, data: rows.map(row => Number(row[key] ?? 0)),
+            backgroundColor: canvas.id === 'outcomeChart' ? outcomeColors :
+                (byType ? rows.map(row => typeColor('type_' + (row.incident_type_id ?? 'unknown'))) : typeColor(key)),
+            borderColor: type === 'doughnut' ? '#fff' : (byType ? rows.map(row => typeColor('type_' + (row.incident_type_id ?? 'unknown'))) : typeColor(key)),
+            borderWidth: 2,
+            borderRadius: type === 'bar' ? 4 : 0,
+            fill: false, tension: .2, pointRadius: rows.length > 36 ? 1 : 3,
+            ...(type === 'line' ? { borderDash: typeKeys.indexOf(key) % 3 === 1 ? [6, 3] : typeKeys.indexOf(key) % 3 === 2 ? [2, 3] : [] } : {}),
+        }));
         const centerTotal = {
             id: 'incidentTotal', afterDraw(chart) {
                 if (canvas.id !== 'outcomeChart') return;
+                if (!chart.chartArea) return;
                 const { ctx, chartArea: { left, right, top, bottom } } = chart;
-                ctx.save(); ctx.textAlign = 'center'; ctx.fillStyle = '#171a21'; ctx.font = 'bold 26px sans-serif';
+                ctx.save(); ctx.textAlign = 'center'; ctx.fillStyle = '#334155'; ctx.font = 'bold 26px sans-serif';
                 ctx.fillText(rows.reduce((total, row) => total + Number(row.total), 0), (left + right) / 2, (top + bottom) / 2);
                 ctx.font = '12px sans-serif'; ctx.fillText('Incidents', (left + right) / 2, (top + bottom) / 2 + 22); ctx.restore();
             },
         };
         new Chart(canvas, {
             type, plugins: [centerTotal],
-            data: { labels: rows.map(row => row.label), datasets: [{
-                label: 'Incidents', data: rows.map(row => Number(row.total)),
-                backgroundColor: type === 'line' ? 'rgba(37, 99, 235, .12)' : (canvas.id === 'outcomeChart' ? outcomeColors : palette),
-                borderColor: type === 'line' ? '#2563eb' : '#fff', borderWidth: type === 'line' ? 2 : 1,
-                borderRadius: type === 'bar' ? 5 : 0, fill: type === 'line', tension: .25, pointRadius: 4,
-            }] },
+            data: { labels: rows.map(row => row.label), datasets },
             options: { responsive: true, maintainAspectRatio: false, indexAxis: horizontal ? 'y' : 'x',
-                cutout: '68%', plugins: { legend: { display: type === 'doughnut', position: 'bottom' } },
-                ...(type !== 'doughnut' ? { scales: { [horizontal ? 'x' : 'y']: { beginAtZero: true, ticks: { precision: 0 } } } } : {}),
+                interaction: { mode: type === 'line' || stacked ? 'index' : 'nearest', intersect: false },
+                cutout: '68%', plugins: {
+                    legend: { display: type === 'doughnut' || (!byType && typeKeys.length > 0 && canvas.id !== 'outcomeChart'), position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } },
+                    tooltip: { callbacks: { label: context => `${byType ? context.label : context.dataset.label}: ${context.formattedValue} incidents` } },
+                },
+                ...(type !== 'doughnut' ? { scales: {
+                    x: { stacked, ...(horizontal ? { beginAtZero: true, ticks: { precision: 0 } } : { ticks: { autoSkip: true, maxRotation: 45 } }) },
+                    y: { stacked, ...(!horizontal ? { beginAtZero: true, ticks: { precision: 0 } } : {}) },
+                } } : {}),
             },
         });
     });

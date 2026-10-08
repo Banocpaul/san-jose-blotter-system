@@ -47,7 +47,7 @@ class CaseAnalyticsTest extends TestCase
                     ->assertSee('SLA &amp; Bottlenecks', false);
             }
             if ($slug === 'staff') {
-                $this->get('/analytics')->assertSee('Business Intelligence')->assertDontSee('Incident Analytics');
+                $this->get('/analytics')->assertSee('Case Analytics &amp; Insights', false)->assertDontSee('Incident Analytics');
                 $this->get('/incident-analytics')->assertForbidden();
             }
         }
@@ -84,6 +84,29 @@ class CaseAnalyticsTest extends TestCase
             ->assertViewHas('referredCases', 1)->assertViewHas('resolutionRate', 57.1)
             ->assertViewHas('avgResolutionDays', 2.0)->assertViewHas('resolutionSamples', 2)
             ->assertViewHas('missingResolutionDates', 2)->assertSee('Dismissed');
+    }
+
+    public function test_resolution_time_by_type_uses_only_valid_resolved_samples_including_zero_days(): void
+    {
+        $other = IncidentType::create(['code' => 'OTHER', 'name' => 'Other Incident']);
+        $this->case(['record_status' => 'Resolved', 'reported_at' => '2026-10-01 12:00:00', 'closed_at' => '2026-10-01 12:00:00']);
+        $this->case(['record_status' => 'Resolved', 'reported_at' => '2026-10-01 12:00:00', 'closed_at' => '2026-10-03 12:00:00']);
+        $this->case(['record_status' => 'Open', 'closed_at' => '2026-10-05 12:00:00']);
+        $this->case(['record_status' => 'Closed', 'closed_at' => '2026-10-05 12:00:00']);
+        $this->case(['record_status' => 'Resolved', 'reported_at' => null, 'closed_at' => '2026-10-02 12:00:00']);
+        $this->case(['record_status' => 'Resolved', 'closed_at' => '2026-11-01 12:00:00']);
+        $this->case(['incident_type_id' => $other->id, 'record_status' => 'Open']);
+
+        $response = $this->actingAs($this->secretary)->get('/analytics?tab=performance')->assertOk();
+
+        $this->assertSame([['label' => 'Test Incident', 'total' => 1.0, 'samples' => 2]], $response->viewData('resolutionTimeByType')->all());
+        $response->assertSee('Unresolved cases have no completed resolution time and are excluded.');
+
+        $this->case(['incident_type_id' => $other->id, 'record_status' => 'Resolved',
+            'reported_at' => '2026-10-02 12:00:00', 'closed_at' => '2026-10-02 12:00:00']);
+        $zeroOnly = $this->get('/analytics?tab=performance&incident_type_id='.$other->id)->assertOk();
+        $this->assertSame(0.0, $zeroOnly->viewData('resolutionTimeByType')->first()['total']);
+        $zeroOnly->assertSee('id="performanceTypeTime"', false)->assertSee('Usable Resolved Cases');
     }
 
     public function test_age_buckets_target_boundaries_and_oldest_open_cases(): void

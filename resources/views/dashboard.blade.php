@@ -16,7 +16,7 @@
         $currentUser?->role?->name
         ?? 'User';
 
-    $hour = now()->hour;
+    $hour = now('Asia/Manila')->hour;
 
     $greeting = match (true) {
         $hour < 12 => 'Good morning',
@@ -34,8 +34,8 @@
 
 <style>
     :root {
-        --dash-ink: #0a0c10;
-        --dash-ink-soft: #151821;
+        --dash-ink: #334155;
+        --dash-ink-soft: #475569;
         --dash-blue: #2563eb;
         --dash-blue-dark: #1746b8;
         --dash-blue-soft: #eaf1ff;
@@ -56,218 +56,35 @@
     */
 
     .dashboard-intro {
-        position: relative;
-        overflow: hidden;
-
-        display: grid;
-        grid-template-columns:
-            minmax(0, 1fr)
-            minmax(210px, 290px);
-
-        gap: 16px;
-        align-items: center;
-
         margin-bottom: 18px;
-        padding: 16px 22px;
-
-        border:
-            1px solid var(--dash-ink);
-
-        border-radius:
-            var(--dash-radius);
-
-        background:
-            var(--dash-white);
-
-        box-shadow:
-            var(--dash-shadow);
-
-        isolation: isolate;
-    }
-
-    .dashboard-intro::before {
-        content: "";
-
-        position: absolute;
-        width: 240px;
-        height: 240px;
-
-        right: 180px;
-        top: -120px;
-
-        border-radius: 999px;
-
-        background:
-            rgba(37, 99, 235, .11);
-
-        border:
-            1px solid rgba(37, 99, 235, .26);
-
-        z-index: -1;
-    }
-
-    .dashboard-intro::after {
-        content: "";
-
-        position: absolute;
-        width: 92px;
-        height: 92px;
-
-        right: 290px;
-        bottom: -46px;
-
-        transform: rotate(18deg);
-
-        border-radius: 24px;
-
-        background:
-            var(--dash-blue);
-
-        opacity: .10;
-
-        z-index: -1;
-    }
-
-    .dashboard-intro-kicker {
-        display: inline-flex;
-        align-items: center;
-
-        gap: 7px;
-
-        margin-bottom: 6px;
-
-        color:
-            var(--dash-blue-dark);
-
-        font-size: 9px;
-        font-weight: 700;
-
-        text-transform: uppercase;
-        letter-spacing: .17em;
-    }
-
-    .dashboard-intro-kicker::before {
-        content: "";
-
-        width: 26px;
-        height: 2px;
-
-        border-radius: 999px;
-
-        background:
-            var(--dash-blue);
     }
 
     .dashboard-intro h1 {
-        max-width: 760px;
-
-        margin: 0;
-
-        color:
-            var(--dash-ink);
-
-        font-size:
-            clamp(
-                24px,
-                3vw,
-                36px
-            );
-
+        margin: 0 0 8px;
+        color: var(--dash-ink);
+        font-size: 24px;
         font-weight: 700;
+        letter-spacing: -.04em;
+    }
 
-        line-height: .98;
-
-        letter-spacing: -.06em;
+    .dashboard-greeting {
+        display: inline-block;
+        max-width: 100%;
+        padding: 8px 12px;
+        border: 1px solid var(--dash-line);
+        border-radius: 10px;
+        background: var(--dash-white);
+        color: var(--dash-ink);
+        font-size: 13px;
+        font-weight: 600;
     }
 
     .dashboard-intro-text {
-        max-width: 650px;
-
-        margin:
-            7px
-            0
-            0;
-
-        color:
-            var(--dash-muted);
-
-        font-size: 10px;
+        max-width: 760px;
+        margin: 6px 0 0;
+        color: var(--dash-muted);
+        font-size: 11px;
         line-height: 1.45;
-    }
-
-    .dashboard-date {
-        position: relative;
-
-        min-height: 96px;
-
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-
-        padding: 12px 14px;
-
-        border:
-            1px solid var(--dash-ink);
-
-        border-radius:
-            18px;
-
-        color:
-            rgba(255, 255, 255, .72);
-
-        background:
-            var(--dash-ink);
-
-        font-size: 10px;
-        font-weight: 600;
-
-        text-align: left;
-
-        box-shadow:
-            0 14px 34px
-            rgba(10, 12, 16, .16);
-    }
-
-    .dashboard-date::before {
-        content: "SJ";
-
-        width: 30px;
-        height: 30px;
-
-        display: grid;
-        place-items: center;
-
-        border:
-            1px solid rgba(255, 255, 255, .14);
-
-        border-radius: 9px;
-
-        color:
-            #ffffff;
-
-        background:
-            var(--dash-blue);
-
-        font-size: 10px;
-        font-weight: 700;
-
-        letter-spacing: .08em;
-    }
-
-    .dashboard-date strong {
-        display: block;
-
-        margin-top: 5px;
-
-        color:
-            #ffffff;
-
-        font-size: 14px;
-        font-weight: 600;
-
-        line-height: 1.1;
-
-        letter-spacing: -.04em;
     }
 
     /*
@@ -1004,50 +821,10 @@
     |--------------------------------------------------------------------------
     */
 
-    @media (
-        max-width: 991.98px
-    ) {
-        .dashboard-intro {
-            grid-template-columns: 1fr;
-        }
-
-        .dashboard-date {
-            min-height: 90px;
-        }
-    }
-
-    @media (
-        max-width: 767.98px
-    ) {
-        .dashboard-intro {
-            padding: 16px 18px;
-        }
-
-        .dashboard-intro h1 {
-            font-size: 28px;
-        }
-
-        .dashboard-date {
-            margin-top: 0;
-        }
-    }
-
-    @media (
-        max-width: 575.98px
-    ) {
-        .dashboard-intro {
-            padding: 14px 16px;
-
-            border-radius: 18px;
-        }
-
-        .dashboard-intro h1 {
-            font-size: 25px;
-        }
-
-        .metric-card-lux {
-            padding: 17px;
-        }
+    @media (max-width: 575.98px) {
+        .dashboard-intro h1 { font-size: 22px; }
+        .dashboard-greeting { font-size: 12px; padding: 7px 10px; }
+        .metric-card-lux { padding: 17px; }
     }
 </style>
 
@@ -1062,14 +839,10 @@
 
     <div>
 
-        <div class="dashboard-intro-kicker">
-            Barangay operations • live overview
+        <h1>Dashboard</h1>
+        <div class="dashboard-greeting">
+            {{ $greeting }}, {{ $currentUser?->name ?? 'User' }}.
         </div>
-
-        <h1>
-            {{ $greeting }},
-            {{ $currentUser?->name ?? 'User' }}.
-        </h1>
 
         <p class="dashboard-intro-text">
 
@@ -1109,15 +882,6 @@
     </div>
 
 
-    <div class="dashboard-date">
-
-        Today
-
-        <strong>
-            {{ now()->format('F d, Y') }}
-        </strong>
-
-    </div>
 
 </div>
 

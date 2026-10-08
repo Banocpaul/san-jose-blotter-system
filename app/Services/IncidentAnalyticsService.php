@@ -6,6 +6,7 @@ use App\Enums\RecordStatus;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class IncidentAnalyticsService
@@ -24,34 +25,42 @@ class IncidentAnalyticsService
                 ? null : round($isRate ? $current - $previous : ($current - $previous) / $previous * 100, 1);
         }
         $incidentTypeDistribution = (clone $query)->toBase()
-            ->join('incident_types', 'incident_types.id', '=', 'blotter_cases.incident_type_id')
-            ->select('incident_types.name as label')->selectRaw('COUNT(*) AS total')
-            ->groupBy('incident_types.id', 'incident_types.name')->orderByDesc('total')->get();
-        $month = DB::getDriverName() === 'sqlite' ? "strftime('%Y-%m', incident_date)" : "DATE_FORMAT(incident_date, '%Y-%m')";
-        $months = (clone $query)->toBase()->selectRaw("$month AS period, COUNT(*) AS total")
-            ->groupBy('period')->orderBy('period')->pluck('total', 'period');
+            ->leftJoin('incident_types', 'incident_types.id', '=', 'blotter_cases.incident_type_id')
+            ->select('blotter_cases.incident_type_id')->selectRaw("COALESCE(incident_types.name, 'Unspecified') AS label, COUNT(*) AS total")
+            ->groupBy('blotter_cases.incident_type_id', 'incident_types.name')->orderBy('blotter_cases.incident_type_id')->get();
+        $incidentSeries = $incidentTypeDistribution->mapWithKeys(fn ($row) => ['type_'.($row->incident_type_id ?? 'unknown') => $row->label]);
+        $month = DB::getDriverName() === 'sqlite' ? "strftime('%Y-%m', blotter_cases.incident_date)" : "DATE_FORMAT(blotter_cases.incident_date, '%Y-%m')";
+        $monthTypeCounts = (clone $query)->toBase()->select('blotter_cases.incident_type_id')
+            ->selectRaw("$month AS period, COUNT(*) AS total")->groupBy('period', 'blotter_cases.incident_type_id')->get();
+        $monthsByType = $monthTypeCounts->groupBy('period');
+        $months = $monthsByType->map(fn ($counts) => $counts->sum('total'))->sortKeys();
         $monthlyTrend = collect();
         $chartStart = $year === null ? ($start ?? ($months->isNotEmpty() ? CarbonImmutable::parse($months->keys()->first()) : null)) : CarbonImmutable::create($year, 1, 1);
         $chartEnd = $year === null ? ($end ?? ($months->isNotEmpty() ? CarbonImmutable::parse($months->keys()->last()) : null)) : $chartStart->endOfYear();
         if ($chartStart !== null && $chartEnd !== null && $chartStart <= $chartEnd) {
             for ($period = $chartStart->startOfMonth(); $period <= $chartEnd; $period = $period->addMonth()) {
                 $monthlyTrend->push(['label' => $year === null ? $period->format('M Y') : $period->format('M'),
-                    'total' => (int) ($months[$period->format('Y-m')] ?? 0)]);
+                    'total' => (int) ($months[$period->format('Y-m')] ?? 0)]
+                    + $this->typeValues($incidentSeries, $monthsByType->get($period->format('Y-m'), collect())));
             }
         }
-        $dayNumber = DB::getDriverName() === 'sqlite' ? "CAST(strftime('%w', incident_date) AS INTEGER)" : '(DAYOFWEEK(incident_date) - 1)';
-        $days = (clone $query)->toBase()->selectRaw("$dayNumber AS day_number, COUNT(*) AS total")
-            ->groupBy('day_number')->pluck('total', 'day_number');
+        $dayNumber = DB::getDriverName() === 'sqlite' ? "CAST(strftime('%w', blotter_cases.incident_date) AS INTEGER)" : '(DAYOFWEEK(blotter_cases.incident_date) - 1)';
+        $daysByType = (clone $query)->toBase()->select('blotter_cases.incident_type_id')
+            ->selectRaw("$dayNumber AS day_number, COUNT(*) AS total")->groupBy('day_number', 'blotter_cases.incident_type_id')->get()->groupBy('day_number');
+        $days = $daysByType->map(fn ($counts) => $counts->sum('total'));
         $dayOfWeek = collect([1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 0 => 'Sun'])
-            ->map(fn ($label, $day) => ['label' => $label, 'total' => (int) ($days[$day] ?? 0)])->values();
-        $caseIds = (clone $query)->select('blotter_cases.id');
+            ->map(fn ($label, $day) => ['label' => $label, 'total' => (int) ($days[$day] ?? 0)]
+                + $this->typeValues($incidentSeries, $daysByType->get($day, collect())))->values();
+        $caseIds = (clone $query)->select('blotter_cases.id', 'blotter_cases.incident_type_id');
         $sitios = ['Sitio 1', 'Sitio 2', 'Sitio 3', 'Sitio 4'];
         $partySitios = DB::table('case_complainants')->select('blotter_case_id', 'sitio')
             ->unionAll(DB::table('case_respondents')->select('blotter_case_id', 'sitio'));
-        $sitioCounts = DB::query()->fromSub($partySitios, 'parties')->joinSub(clone $caseIds, 'cases', 'cases.id', '=', 'parties.blotter_case_id')
-            ->whereIn('sitio', $sitios)->select('sitio')->selectRaw('COUNT(DISTINCT parties.blotter_case_id) AS total')
-            ->groupBy('sitio')->pluck('total', 'sitio');
-        $sitioDistribution = collect($sitios)->map(fn ($sitio) => ['label' => $sitio, 'total' => (int) ($sitioCounts[$sitio] ?? 0)]);
+        $sitiosByType = DB::query()->fromSub($partySitios, 'parties')->joinSub(clone $caseIds, 'cases', 'cases.id', '=', 'parties.blotter_case_id')
+            ->whereIn('sitio', $sitios)->select('sitio', 'cases.incident_type_id')->selectRaw('COUNT(DISTINCT parties.blotter_case_id) AS total')
+            ->groupBy('sitio', 'cases.incident_type_id')->get()->groupBy('sitio');
+        $sitioDistribution = collect($sitios)->map(fn ($sitio) => ['label' => $sitio,
+            'total' => (int) $sitiosByType->get($sitio, collect())->sum('total')]
+            + $this->typeValues($incidentSeries, $sitiosByType->get($sitio, collect())));
         $outcome = "CASE WHEN record_status = 'Resolved' THEN 'Settled / Resolved' "
             ."WHEN record_status = 'Open' AND case_stage IN ('For Mediation', 'For Pangkat/Conciliation') THEN 'Under Mediation' "
             ."WHEN case_stage = 'For Further Action/CFA' THEN 'CFA / Referred' "
@@ -67,7 +76,17 @@ class IncidentAnalyticsService
         $recentIncidents = (clone $query)->with('incidentType')->latest('incident_date')->latest('id')->limit(10)->get();
 
         return array_merge($metrics, compact('previousMetrics', 'comparisons', 'monthlyTrend', 'dayOfWeek',
-            'incidentTypeDistribution', 'sitioDistribution', 'outcomeDistribution', 'resolutionByType', 'recentIncidents'));
+            'incidentTypeDistribution', 'incidentSeries', 'sitioDistribution', 'outcomeDistribution', 'resolutionByType', 'recentIncidents'));
+    }
+
+    private function typeValues(Collection $series, Collection $counts): array
+    {
+        $values = array_fill_keys($series->keys()->all(), 0);
+        foreach ($counts as $row) {
+            $values['type_'.($row->incident_type_id ?? 'unknown')] = (int) $row->total;
+        }
+
+        return $values;
     }
 
     private function metrics(Builder $query, CarbonImmutable $asOf): array

@@ -161,6 +161,42 @@ class IncidentAnalyticsTest extends TestCase
             ->assertSee('No comparable prior value');
     }
 
+    public function test_type_series_preserve_counts_zero_periods_and_distinct_sitio_involvement(): void
+    {
+        $other = IncidentType::create(['code' => 'OTHER', 'name' => 'Other Incident']);
+        $first = $this->case('2025-01-06');
+        $second = $this->case('2025-01-07', ['incident_type_id' => $other->id]);
+        $this->case('2025-03-03', ['incident_type_id' => $other->id]);
+        $this->case('2024-01-01', ['incident_type_id' => $other->id]);
+        $this->case('2025-01-06', ['deleted_at' => now()]);
+        $this->party('case_complainants', $first, null, 'Sitio 1');
+        $this->party('case_respondents', $first, null, 'Sitio 1');
+        $this->party('case_respondents', $first, null, 'Sitio 2');
+        $this->party('case_complainants', $second, null, 'Sitio 1');
+        $firstKey = 'type_'.$this->incidentType->id;
+        $otherKey = 'type_'.$other->id;
+
+        $response = $this->get('/incident-analytics?year=2025')->assertOk();
+
+        $this->assertSame([$firstKey => 'Test Incident', $otherKey => 'Other Incident'], $response->viewData('incidentSeries')->all());
+        $months = $response->viewData('monthlyTrend');
+        $this->assertSame([1, 0, 0], $months->take(3)->pluck($firstKey)->all());
+        $this->assertSame([1, 0, 1], $months->take(3)->pluck($otherKey)->all());
+        $days = $response->viewData('dayOfWeek');
+        $this->assertSame([1, 0, 0, 0, 0, 0, 0], $days->pluck($firstKey)->all());
+        $this->assertSame([1, 1, 0, 0, 0, 0, 0], $days->pluck($otherKey)->all());
+        $sitios = $response->viewData('sitioDistribution');
+        $this->assertSame([1, 1, 0, 0], $sitios->pluck($firstKey)->all());
+        $this->assertSame([1, 0, 0, 0], $sitios->pluck($otherKey)->all());
+        $this->assertSame([2, 1, 0, 0], $sitios->pluck('total')->all());
+
+        $filtered = $this->get('/incident-analytics?year=2025&incident_type_id='.$other->id)->assertOk();
+        $this->assertSame([$otherKey => 'Other Incident'], $filtered->viewData('incidentSeries')->all());
+        $this->assertSame(2, $filtered->viewData('monthlyTrend')->sum($otherKey));
+        $this->assertSame(2, $filtered->viewData('dayOfWeek')->sum($otherKey));
+        $this->assertSame(1, $filtered->viewData('sitioDistribution')->sum($otherKey));
+    }
+
     private function case(string $date, array $values = []): int
     {
         return DB::table('blotter_cases')->insertGetId(array_merge([
