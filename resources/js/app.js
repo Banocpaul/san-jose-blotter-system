@@ -1,3 +1,5 @@
+import './blotter-search';
+
 document.addEventListener(
     'DOMContentLoaded',
     function () {

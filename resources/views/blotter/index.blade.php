@@ -55,7 +55,7 @@
 @endif
 
 
-<div class="card shadow-sm">
+<div class="card shadow-sm blotter-search-card">
 
     <div class="card-body">
 
@@ -65,19 +65,31 @@
             class="row g-2 mb-4 align-items-end"
         >
 
-            <div class="col-12 col-lg-6">
+            <div class="col-12 col-lg-6 position-relative" data-blotter-search>
 
-                <label class="form-label small text-muted">
+                <label class="form-label small text-muted" for="blotter_search">
                     Search
                 </label>
 
                 <input
-                    type="text"
+                    id="blotter_search"
+                    type="search"
                     name="search"
                     value="{{ request('search') }}"
                     class="form-control"
                     placeholder="Case number, person, location..."
+                    autocomplete="off"
+                    aria-controls="blotter_search_results"
+                    aria-expanded="false"
+                    data-blotter-search-input
                 >
+
+                <div
+                    id="blotter_search_results"
+                    class="list-group shadow-sm d-none"
+                    aria-label="Matching blotter records"
+                    data-blotter-search-results
+                ></div>
 
             </div>
 

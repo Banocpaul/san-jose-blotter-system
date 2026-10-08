@@ -200,62 +200,24 @@ class BlotterCase extends Model
             return $query;
         }
 
-        return $query->where(
-            function (
-                Builder $caseQuery
-            ) use ($search) {
-
-                $caseQuery
-                    ->where(
-                        'reference_number',
-                        'like',
-                        "%{$search}%"
-                    )
-                    ->orWhere(
-                        'location',
-                        'like',
-                        "%{$search}%"
-                    )
-                    ->orWhereHas(
-                        'complainants',
-                        fn (Builder $person) => $person
-                            ->where(
-                                'first_name',
-                                'like',
-                                "%{$search}%"
-                            )
-                            ->orWhere(
-                                'middle_name',
-                                'like',
-                                "%{$search}%"
-                            )
-                            ->orWhere(
-                                'last_name',
-                                'like',
-                                "%{$search}%"
-                            )
-                    )
-                    ->orWhereHas(
-                        'respondents',
-                        fn (Builder $person) => $person
-                            ->where(
-                                'first_name',
-                                'like',
-                                "%{$search}%"
-                            )
-                            ->orWhere(
-                                'middle_name',
-                                'like',
-                                "%{$search}%"
-                            )
-                            ->orWhere(
-                                'last_name',
-                                'like',
-                                "%{$search}%"
-                            )
-                    );
+        $tokens = preg_split('/\s+/u', $search, -1, PREG_SPLIT_NO_EMPTY);
+        $matchPerson = function (Builder $person) use ($tokens): void {
+            foreach ($tokens as $token) {
+                $person->where(function (Builder $part) use ($token): void {
+                    $part->where('first_name', 'like', "%{$token}%")
+                        ->orWhere('middle_name', 'like', "%{$token}%")
+                        ->orWhere('last_name', 'like', "%{$token}%")
+                        ->orWhere('suffix', 'like', "%{$token}%");
+                });
             }
-        );
+        };
+
+        return $query->where(function (Builder $caseQuery) use ($search, $matchPerson): void {
+            $caseQuery->where('reference_number', 'like', "%{$search}%")
+                ->orWhere('location', 'like', "%{$search}%")
+                ->orWhereHas('complainants', $matchPerson)
+                ->orWhereHas('respondents', $matchPerson);
+        });
     }
 
     /*
