@@ -42,6 +42,7 @@ class BlotterCaseController extends Controller
                 'blotter_cases.case_stage',
                 'blotter_cases.record_status',
                 'blotter_cases.reported_at',
+                'blotter_cases.location',
             ])
             ->with([
                 'incidentType:id,name',
@@ -70,6 +71,23 @@ class BlotterCaseController extends Controller
         | Results
         |--------------------------------------------------------------------------
         */
+
+        if ($request->expectsJson()) {
+            $personNames = fn ($people) => $people->map(fn ($person) => implode(' ', array_filter([
+                $person->first_name, $person->middle_name, $person->last_name, $person->suffix,
+            ])))->implode(', ');
+
+            $matches = $query->latest('reported_at')->limit(20)->get();
+
+            return response()->json(['data' => $matches->map(fn (BlotterCase $case) => [
+                'reference' => $case->reference_number,
+                'incident' => $case->incidentType?->name,
+                'complainants' => $personNames($case->complainants),
+                'respondents' => $personNames($case->respondents),
+                'location' => $case->location,
+                'view_url' => route('blotter.show', $case),
+            ])]);
+        }
 
         $cases = $query
             ->latest('reported_at')

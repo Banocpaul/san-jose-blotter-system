@@ -1407,3 +1407,23 @@
                     .001ms !important;
             }
         }
+.blotter-search-card {
+    overflow: visible !important;
+}
+
+[data-blotter-search-results] {
+    position: absolute;
+    top: 100%;
+    left: calc(var(--bs-gutter-x) * .5);
+    right: calc(var(--bs-gutter-x) * .5);
+    z-index: 1030;
+    max-height: 320px;
+    overflow-y: auto;
+    margin-top: 4px;
+    background: #fff;
+    border-radius: 10px;
+}
+
+[data-blotter-search-results] .list-group-item:focus {
+    background: var(--bs-primary-bg-subtle, #e7f1ff);
+}
