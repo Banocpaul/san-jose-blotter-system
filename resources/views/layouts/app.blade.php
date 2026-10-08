@@ -96,6 +96,7 @@
             [
                 'barangay_captain',
                 'secretary',
+                'staff',
             ],
             true
         );
@@ -222,6 +223,7 @@
 
             </a>
 
+            @if(in_array($roleSlug, ['barangay_captain', 'secretary'], true))
             <a
                 href="{{ route('incident-analytics.index') }}"
                 class="sidebar-link {{ request()->routeIs('incident-analytics.*') ? 'active' : '' }}"
@@ -232,6 +234,7 @@
 
                 Incident Analytics
             </a>
+            @endif
 
         @endif
 
