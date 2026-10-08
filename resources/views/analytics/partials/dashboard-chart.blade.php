@@ -2,6 +2,7 @@
     $chartRows = collect($rows);
     $series = $series ?? ['total' => ($valueLabel ?? 'Cases')];
     $hasValues = $chartRows->contains(fn ($row) => collect(array_keys($series))->contains(fn ($key) => data_get($row, $key) !== null));
+    $showSamples = ($unit ?? 'cases') === 'days' && $chartRows->contains(fn ($row) => data_get($row, 'samples') !== null);
 @endphp
 <div class="card h-100">
     <div class="card-header"><strong>{{ $title }}</strong></div>
@@ -24,10 +25,10 @@
         <details class="mt-3">
             <summary class="small text-muted">View chart values</summary>
             <div class="table-responsive mt-2"><table class="table table-sm mb-0">
-                <thead><tr><th scope="col">Category</th>@foreach($series as $label)<th scope="col" class="text-end">{{ $label }}</th>@endforeach</tr></thead>
+                <thead><tr><th scope="col">Category</th>@foreach($series as $label)<th scope="col" class="text-end">{{ $label }}</th>@endforeach @if($showSamples)<th scope="col" class="text-end">Usable Resolved Cases</th>@endif</tr></thead>
                 <tbody>@forelse($chartRows as $row)
-                    <tr><td>{{ data_get($row, 'label') }}</td>@foreach($series as $key => $label)<td class="text-end">{{ data_get($row, $key) === null ? 'Unavailable' : number_format(data_get($row, $key), ($unit ?? 'cases') === 'days' ? 1 : 0) }}</td>@endforeach</tr>
-                @empty<tr><td colspan="{{ count($series) + 1 }}" class="text-muted">No matching data.</td></tr>@endforelse</tbody>
+                    <tr><td>{{ data_get($row, 'label') }}</td>@foreach($series as $key => $label)<td class="text-end">{{ data_get($row, $key) === null ? 'Unavailable' : number_format(data_get($row, $key), ($unit ?? 'cases') === 'days' ? 1 : 0) }}</td>@endforeach @if($showSamples)<td class="text-end">{{ number_format(data_get($row, 'samples', 0)) }}</td>@endif</tr>
+                @empty<tr><td colspan="{{ count($series) + 1 + (int) $showSamples }}" class="text-muted">No matching data.</td></tr>@endforelse</tbody>
             </table></div>
         </details>
     </div>

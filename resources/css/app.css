@@ -1,8 +1,8 @@
         :root {
             --sidebar-width: 276px;
 
-            --ink: #090b10;
-            --ink-soft: #171a21;
+            --ink: #334155;
+            --ink-soft: #475569;
             --ink-muted: #667085;
 
             --canvas: #f4f7fb;
@@ -10,7 +10,7 @@
             --surface-soft: #f7f9fc;
 
             --line: #d9dee8;
-            --line-strong: #101218;
+            --line-strong: #94a3b8;
 
             --accent: #2563eb;
             --accent-dark: #1746b8;
@@ -104,7 +104,7 @@
             background:
                 linear-gradient(
                     90deg,
-                    #111318,
+                    #475569,
                     var(--accent)
                 );
 
@@ -145,8 +145,8 @@
             background:
                 linear-gradient(
                     180deg,
-                    #0a0b0f 0%,
-                    #111318 100%
+                    #334155 0%,
+                    #475569 100%
                 );
 
             border-right:
@@ -264,7 +264,7 @@
 
         .login-brand {
             padding: 30px;
-            background: linear-gradient(135deg, #0b182d, #12284a);
+            background: linear-gradient(135deg, #334155, #475569);
             border-bottom: 3px solid var(--accent);
         }
 
@@ -1426,4 +1426,17 @@
 
 [data-blotter-search-results] .list-group-item:focus {
     background: var(--bs-primary-bg-subtle, #e7f1ff);
+}
+
+.topbar-date {
+    color: var(--ink-muted);
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+@media (max-width: 575.98px) {
+    .topbar { gap: 8px; }
+    .topbar-left { gap: 8px; min-width: 0; }
+    .topbar-right { gap: 8px; }
+    .topbar-date { font-size: 9px; }
 }

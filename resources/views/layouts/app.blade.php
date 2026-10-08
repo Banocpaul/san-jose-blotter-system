@@ -10,7 +10,7 @@
 
     <meta
         name="theme-color"
-        content="#0a0b0f"
+        content="#334155"
     >
 
     <title>
@@ -219,7 +219,7 @@
                     <i class="bi bi-bar-chart-line"></i>
                 </span>
 
-                Business Intelligence
+                Case Analytics &amp; Insights
 
             </a>
 
@@ -591,6 +591,10 @@
                 {{ $roleName }}
 
             </div>
+
+            <time class="topbar-date" datetime="{{ now('Asia/Manila')->toDateString() }}" aria-label="Current date in Manila">
+                {{ now('Asia/Manila')->format('M d, Y') }}
+            </time>
 
 
             <form
