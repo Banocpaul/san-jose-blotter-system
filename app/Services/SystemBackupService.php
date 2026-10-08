@@ -200,8 +200,7 @@ class SystemBackupService
                         array_chunk(
                             $rows,
                             250
-                        )
-                        as $chunk
+                        ) as $chunk
                     ) {
                         DB::table($table)
                             ->insert(
@@ -226,8 +225,7 @@ class SystemBackupService
 
         $captainRole =
             $roles->first(
-                fn (array $role) =>
-                    ($role['slug'] ?? null)
+                fn (array $role) => ($role['slug'] ?? null)
                     === 'barangay_captain'
             );
 
@@ -292,8 +290,7 @@ class SystemBackupService
                     ->orderBy('id')
                     ->get()
                     ->map(
-                        fn ($row) =>
-                            (array) $row
+                        fn ($row) => (array) $row
                     )
                     ->values()
                     ->all();
@@ -306,29 +303,22 @@ class SystemBackupService
         }
 
         return [
-            'format' =>
-                self::FORMAT,
+            'format' => self::FORMAT,
 
-            'version' =>
-                self::VERSION,
+            'version' => self::VERSION,
 
-            'created_at' =>
-                now()->toIso8601String(),
+            'created_at' => now()->toIso8601String(),
 
-            'application' =>
-                config(
-                    'app.name',
-                    'Barangay San Jose Blotter Management System'
-                ),
+            'application' => config(
+                'app.name',
+                'Barangay San Jose Blotter Management System'
+            ),
 
-            'schema' =>
-                $schema,
+            'schema' => $schema,
 
-            'counts' =>
-                $counts,
+            'counts' => $counts,
 
-            'tables' =>
-                $tables,
+            'tables' => $tables,
         ];
     }
 
@@ -424,10 +414,13 @@ class SystemBackupService
             sort($currentColumns);
             sort($backupColumns);
 
-            if (
-                $currentColumns
-                !== $backupColumns
-            ) {
+            $optionalTimingColumns = $table === 'blotter_cases'
+                ? ['stage_entered_at', 'tracked_opened_at', 'sla_started_at', 'sla_extension_days', 'sla_extension_reason']
+                : [];
+            $missingColumns = array_diff($currentColumns, $backupColumns);
+            $extraColumns = array_diff($backupColumns, $currentColumns);
+
+            if ($extraColumns || array_diff($missingColumns, $optionalTimingColumns)) {
                 throw new RuntimeException(
                     "Backup schema mismatch for table {$table}. Run the same application version and migrations before restoring."
                 );
@@ -465,8 +458,7 @@ class SystemBackupService
 
         $captainRole =
             $roles->first(
-                fn (array $role) =>
-                    ($role['slug'] ?? null)
+                fn (array $role) => ($role['slug'] ?? null)
                     === 'barangay_captain'
             );
 
@@ -486,11 +478,10 @@ class SystemBackupService
             collect(
                 $document['tables']['users']
             )->contains(
-                fn (array $user) =>
-                    (int) (
-                        $user['role_id']
-                        ?? 0
-                    ) === $captainRoleId
+                fn (array $user) => (int) (
+                    $user['role_id']
+                    ?? 0
+                ) === $captainRoleId
                     &&
                     (bool) (
                         $user['is_active']

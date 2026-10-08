@@ -17,7 +17,7 @@
 
 <nav class="analytics-tabs mb-4" aria-label="Analytics sections">
     @foreach(['operations' => ['Case Operations', 'bi-briefcase'], 'performance' => ['Resolution & Performance', 'bi-check2-circle'], 'bottlenecks' => ['SLA & Bottlenecks', 'bi-hourglass-split']] as $key => [$label, $icon])
-        <a href="{{ route('analytics.index', array_merge($filters, ['tab' => $key])) }}"
+        <a href="{{ route('analytics.index', array_merge($filters, ['tab' => $key, 'year' => $reportingYear])) }}"
             class="analytics-tab {{ $activeTab === $key ? 'active' : '' }}" @if($activeTab === $key) aria-current="page" @endif>
             <i class="bi {{ $icon }}" aria-hidden="true"></i> {{ $label }}
         </a>
@@ -26,7 +26,7 @@
 
 @php
     $activeFilterCount = count(array_filter(
-        array_diff_key($filters, ['tab' => true]),
+        array_diff_key($filters, ['tab' => true, 'year' => true]),
         fn ($value) => $value !== null && $value !== ''
     ));
 @endphp
@@ -48,6 +48,7 @@
     <div class="card-body">
         <form method="GET" action="{{ route('analytics.index') }}">
             <input type="hidden" name="tab" value="{{ $activeTab }}">
+            <input type="hidden" name="year" value="{{ $reportingYear }}">
             <div class="row g-3 align-items-end">
                 <div class="col-sm-6 col-lg-3">
                     <label for="date_from" class="form-label">Incident Date From</label>
@@ -118,78 +119,35 @@
                 <div class="col-lg-6"><p id="target_help" class="small text-muted mb-0">Compare open-case age against a target you choose. Age starts at the report date; the target applies to this analysis.</p></div>
                 <div class="col-lg-3 d-flex flex-wrap gap-2 justify-content-lg-end">
                     <button class="btn btn-primary" type="submit"><i class="bi bi-funnel" aria-hidden="true"></i> Apply Filters</button>
-                    <a href="{{ route('analytics.index', ['tab' => $activeTab]) }}" class="btn btn-outline-secondary">Reset</a>
+                    <a href="{{ route('analytics.index', ['tab' => $activeTab, 'year' => $reportingYear]) }}" class="btn btn-outline-secondary">Reset</a>
                 </div>
             </div>
         </form>
     </div>
 </details>
 
-@php
-    $cards = match ($activeTab) {
-        'performance' => [
-            ['Resolved Records', number_format($resolvedCases), 'Records marked Resolved'],
-            ['Dismissed Cases', number_format($dismissedCases), 'Current stage: Dismissed'],
-            ['CFA / Referred', number_format($referredCases), 'Current stage: Further Action/CFA'],
-            ['Resolution Rate', $resolutionRate === null ? '—' : number_format($resolutionRate, 1).'%', 'Resolved records ÷ all matching cases'],
-            ['Avg. Resolution Time', $avgResolutionDays === null ? '—' : number_format($avgResolutionDays, 1).' days', $resolutionSamples.' resolved cases with usable dates'],
-        ],
-        'bottlenecks' => [
-            ['Open Cases', number_format($openCases), 'Current unresolved workload'],
-            ['Beyond Target', $beyondTargetCases === null ? 'Not set' : number_format($beyondTargetCases), $targetDays === null ? 'Enter a processing target above' : 'Age greater than '.$targetDays.' days'],
-            ['Unassigned Open Cases', number_format($unassignedCases), 'No current councilor assignment'],
-            ['Report Date Unavailable', number_format($unknownAgeCases), 'Open cases excluded from target checks'],
-        ],
-        default => [
-            ['Total Cases', number_format($totalCases), 'All matching records'],
-            ['Open Cases', number_format($openCases), 'Records marked Open'],
-            ['Resolved Records', number_format($resolvedCases), 'Records marked Resolved'],
-            ['Closed Records', number_format($closedCases), 'Includes dismissals and referrals'],
-        ],
-    };
-@endphp
-<div class="row g-3 mb-4">
-    @foreach($cards as [$label, $value, $description])
-        <div class="col-sm-6 col-xl"><div class="card h-100"><div class="card-body">
-            <div class="text-muted small mb-2">{{ $label }}</div>
-            <div class="fs-3 fw-semibold">{{ $value }}</div>
-            <div class="text-muted small mt-2">{{ $description }}</div>
-        </div></div></div>
-    @endforeach
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+    <div>
+        <h5 class="mb-1">{{ match ($activeTab) { 'performance' => 'Resolution & Performance', 'bottlenecks' => 'SLA & Bottlenecks', default => 'Case Operations' } }}</h5>
+        <p class="small text-muted mb-0">Reporting year applies to filing and completion metrics. Open-case and SLA panels show the current matching workload.</p>
+    </div>
+    <form method="GET" action="{{ route('analytics.index') }}" class="d-flex align-items-center gap-2 analytics-year-form">
+        @foreach(array_diff_key($filters, ['year' => true, 'tab' => true]) as $key => $value)
+            @if($value !== null && $value !== '')<input type="hidden" name="{{ $key }}" value="{{ $value }}">@endif
+        @endforeach
+        <input type="hidden" name="tab" value="{{ $activeTab }}">
+        <label for="reporting_year" class="small fw-semibold text-nowrap">Reporting Year</label>
+        <select id="reporting_year" name="year" class="form-select form-select-sm">
+            @foreach($availableYears as $year)<option value="{{ $year }}" @selected((string) $reportingYear === (string) $year)>{{ $year }}</option>@endforeach
+            <option value="all" @selected($reportingYear === 'all')>All Years</option>
+        </select>
+        <button class="btn btn-outline-primary btn-sm" type="submit">Apply</button>
+    </form>
 </div>
-
 @if($totalCases === 0)
     <div class="alert alert-light border mb-4" role="status">No cases match the selected filters. Adjust the filters or reset them to see available records.</div>
 @endif
-
-@if($activeTab === 'operations')
-    <div class="row g-4 mb-4">
-        <div class="col-xl-8">@include('analytics.partials.chart', ['id' => 'caseTrendChart', 'title' => 'Monthly Incident Trend', 'chartDescription' => 'Cases grouped by incident month, including zero-case months between records.', 'rows' => $caseTrend, 'chartType' => 'line'])</div>
-        <div class="col-xl-4">@include('analytics.partials.chart', ['id' => 'statusChart', 'title' => 'Record Status Distribution', 'rows' => $statusDistribution, 'chartType' => 'doughnut'])</div>
-        <div class="col-xl-6">@include('analytics.partials.chart', ['id' => 'stageChart', 'title' => 'Cases by Current Stage', 'rows' => $stageDistribution, 'horizontal' => true])</div>
-        <div class="col-xl-6">@include('analytics.partials.chart', ['id' => 'incidentChart', 'title' => 'Most Common Incident Types', 'rows' => $incidentDistribution, 'horizontal' => true])</div>
-        <div class="col-xl-6">@include('analytics.partials.chart', ['id' => 'sitioChart', 'title' => 'Cases Involving Each Sitio', 'chartDescription' => 'Based on complainant/respondent addresses. A case may involve more than one Sitio; each case is counted once per Sitio.', 'rows' => $sitioDistribution])</div>
-        <div class="col-xl-6">@include('analytics.partials.chart', ['id' => 'councilorChart', 'title' => 'Current Councilor Workload', 'chartDescription' => 'Open cases only, counted under their current councilor.', 'rows' => $councilorWorkload, 'horizontal' => true])</div>
-    </div>
-    @include('analytics.partials.cases', ['title' => 'Recent Matching Cases', 'cases' => $recentCases, 'aging' => false])
-@elseif($activeTab === 'performance')
-    <div class="row g-4 mb-4">
-        <div class="col-xl-6">@include('analytics.partials.chart', ['id' => 'outcomeChart', 'title' => 'Current Case Outcomes', 'chartDescription' => 'Resolved records, dismissed stages, and CFA/referral stages. Referral and dismissal are shown separately from resolution.', 'rows' => $outcomeDistribution])</div>
-        <div class="col-xl-6">@include('analytics.partials.chart', ['id' => 'mediationChart', 'title' => 'Recorded Mediation Outcomes', 'chartDescription' => 'Distinct cases for each recorded hearing outcome. A case can appear in multiple categories across hearings.', 'rows' => $mediationDistribution, 'horizontal' => true])</div>
-    </div>
-    <div class="card mb-4"><div class="card-header"><strong>Resolution Measurement</strong></div><div class="card-body">
-        <p class="mb-2">Resolution rate counts records marked <strong>Resolved</strong> out of all matching cases. Dismissals and referrals do not increase this rate.</p>
-        <p class="mb-0 text-muted">Average time runs from the report date to the recorded case resolution date. {{ number_format($resolutionSamples) }} usable records are included; {{ number_format($missingResolutionDates) }} resolved records have missing or invalid dates and are excluded. An unavailable average appears as “—”.</p>
-    </div></div>
-    @include('analytics.partials.cases', ['title' => 'Recent Matching Cases', 'cases' => $recentCases, 'aging' => false])
-@else
-    <div class="alert alert-light border mb-4">Age is measured in whole elapsed days from the report date, as of {{ $asOf->setTimezone('Asia/Manila')->format('M d, Y') }}. Stage totals show where open cases currently sit; time spent within each stage is unavailable in existing records.</div>
-    <div class="row g-4 mb-4">
-        <div class="col-xl-6">@include('analytics.partials.chart', ['id' => 'agingChart', 'title' => 'Open-Case Aging', 'rows' => $agingDistribution])</div>
-        <div class="col-xl-6">@include('analytics.partials.chart', ['id' => 'backlogChart', 'title' => 'Open Cases by Current Stage', 'rows' => $stageBacklog, 'horizontal' => true])</div>
-    </div>
-    @include('analytics.partials.cases', ['title' => 'Oldest Open Cases', 'cases' => $oldestCases, 'aging' => true])
-@endif
+@include('analytics.tabs.'.$activeTab)
 @endsection
 
 @push('styles')
@@ -207,6 +165,29 @@
     .analytics-filters-hide, .analytics-filters[open] .analytics-filters-show { display: none; }
     .analytics-filters[open] .analytics-filters-hide { display: inline; }
     .analytics-filters[open] .analytics-filters-action i { transform: rotate(180deg); }
+    .analytics-metric .card-body { padding: 1.1rem; }
+    .analytics-metric-icon { display: inline-flex; padding: .45rem .6rem; background: #eaf2ff; color: #2563eb; border-radius: .6rem; margin-bottom: .75rem; }
+    .analytics-metric-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; font-weight: 700; color: var(--ink-muted); min-height: 2.2em; }
+    .analytics-metric-value { font-size: clamp(1.25rem, 1.7vw, 1.9rem); line-height: 1.25; font-weight: 750; margin: .3rem 0 .5rem; overflow-wrap: anywhere; }
+    .analytics-metric-description { color: var(--ink-muted); font-size: .72rem; }
+    .analytics-metric.metric-dark { background: #0d1b2d; color: #fff; }
+    .analytics-metric.metric-blue { background: #2563eb; color: #fff; }
+    .analytics-metric.metric-dark .analytics-metric-label, .analytics-metric.metric-dark .analytics-metric-description,
+    .analytics-metric.metric-blue .analytics-metric-label, .analytics-metric.metric-blue .analytics-metric-description { color: #e0e9ff; }
+    .analytics-metric.metric-dark .analytics-metric-icon, .analytics-metric.metric-blue .analytics-metric-icon { color: #fff; background: rgba(255,255,255,.12); }
+    .analytics-metric.metric-warning { background: #fffbeb; }
+    .analytics-metric.metric-danger, .analytics-delay-cell.delay-danger { background: #fff1f2; }
+    .analytics-dashboard-chart { height: 260px; }
+    .analytics-date { display: flex; flex-direction: column; align-items: center; width: 45px; flex-shrink: 0; padding: .3rem; border-radius: .6rem; color: #2563eb; background: #eff6ff; line-height: 1.2; }
+    .analytics-date span { font-size: .65rem; text-transform: uppercase; }
+    .analytics-date strong { font-size: 1.2rem; }
+    .analytics-highlight { display: flex; align-items: flex-start; gap: .8rem; padding: .8rem 0; }
+    .analytics-highlight + .analytics-highlight { border-top: 1px solid var(--line); }
+    .analytics-highlight > i { font-size: 1.3rem; }
+    .analytics-delay-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: .6rem; }
+    .analytics-delay-cell { padding: .8rem; border-radius: .6rem; background: #f5f8ff; }
+    .analytics-delay-cell.delay-warning { background: #fffbeb; }
+    .analytics-year-form select { min-width: 105px; }
     .analytics-chart { height: 340px; }
     .analytics-empty { min-height: 180px; display: grid; place-items: center; text-align: center; }
     @media (max-width: 575px) { .analytics-tab { width: 100%; } .analytics-chart { height: 300px; } .analytics-filters-toggle { flex-wrap: wrap; } }
@@ -217,8 +198,9 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    const canvases = document.querySelectorAll('[data-dashboard-chart]');
     if (typeof Chart === 'undefined') {
-        document.querySelectorAll('[data-analytics-chart]').forEach(canvas => {
+        canvases.forEach(canvas => {
             const message = document.createElement('p');
             message.className = 'text-muted small';
             message.textContent = 'Chart could not load. Open “View chart values” below to see the data.';
@@ -226,28 +208,43 @@ document.addEventListener('DOMContentLoaded', function () {
         });
         return;
     }
-    document.querySelectorAll('[data-analytics-chart]').forEach(canvas => {
+    canvases.forEach(canvas => {
         const rows = JSON.parse(canvas.dataset.rows);
+        const series = JSON.parse(canvas.dataset.series);
+        const colors = JSON.parse(canvas.dataset.colors);
         const type = canvas.dataset.type;
         const horizontal = canvas.dataset.horizontal === 'true';
-        const palette = ['#2563eb', '#16794f', '#667085', '#b26a00', '#5b8cff', '#23395d', '#7aa2ff'];
+        const stacked = canvas.dataset.stacked === 'true';
+        const byRow = canvas.dataset.byRow === 'true';
+        const days = canvas.dataset.unit === 'days';
+        const datasets = Object.entries(series).map(([key, label], index) => ({
+            label, data: rows.map(row => row[key] === null ? null : Number(row[key])),
+            backgroundColor: type === 'doughnut' || (byRow && Object.keys(series).length === 1) ? rows.map((_, i) => colors[i % colors.length]) : colors[index % colors.length],
+            borderColor: type === 'doughnut' ? '#fff' : colors[index % colors.length],
+            borderWidth: type === 'doughnut' ? 3 : 2,
+            borderRadius: type === 'bar' ? 4 : 0,
+            tension: .25, pointRadius: 3, fill: false,
+        }));
         new Chart(canvas, {
-            type,
-            data: {
-                labels: rows.map(row => row.label),
-                datasets: [{
-                    label: 'Cases', data: rows.map(row => Number(row.total)),
-                    backgroundColor: type === 'line' ? 'rgba(37, 99, 235, .12)' : (type === 'doughnut' ? palette : '#2563eb'),
-                    borderColor: type === 'doughnut' ? '#ffffff' : '#2563eb', borderWidth: type === 'doughnut' ? 3 : 1,
-                    borderRadius: type === 'bar' ? 5 : 0, fill: type === 'line', tension: .25, pointRadius: 3,
-                }],
-            },
+            type, data: { labels: rows.map(row => row.label), datasets },
+            plugins: type === 'doughnut' ? [{
+                id: 'dashboardTotal', afterDraw(chart) {
+                    const {ctx, chartArea} = chart;
+                    if (!chartArea) return;
+                    const x = (chartArea.left + chartArea.right) / 2;
+                    const y = (chartArea.top + chartArea.bottom) / 2;
+                    const total = datasets[0].data.reduce((sum, value) => sum + (Number(value) || 0), 0);
+                    ctx.save(); ctx.textAlign = 'center'; ctx.fillStyle = '#0d1b2d';
+                    ctx.font = '700 22px sans-serif'; ctx.fillText(total.toLocaleString(), x, y);
+                    ctx.font = '12px sans-serif'; ctx.fillStyle = '#667085'; ctx.fillText('Cases', x, y + 20); ctx.restore();
+                },
+            }] : [],
             options: {
-                responsive: true, maintainAspectRatio: false,
-                indexAxis: horizontal ? 'y' : 'x',
-                plugins: { legend: { display: type === 'doughnut', position: 'bottom' } },
+                responsive: true, maintainAspectRatio: false, indexAxis: horizontal ? 'y' : 'x',
+                plugins: { legend: { display: type === 'doughnut' || datasets.length > 1, position: 'bottom' } },
                 ...(type !== 'doughnut' ? { scales: {
-                    [horizontal ? 'x' : 'y']: { beginAtZero: true, ticks: { precision: 0 } },
+                    x: { stacked, ...(horizontal ? { beginAtZero: true, ticks: { precision: days ? 1 : 0 } } : {}) },
+                    y: { stacked, ...(!horizontal ? { beginAtZero: true, ticks: { precision: days ? 1 : 0 } } : {}) },
                 } } : {}),
             },
         });
