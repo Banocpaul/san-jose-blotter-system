@@ -1,24 +1,23 @@
 <?php
 
+use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BackupRestoreController;
 use App\Http\Controllers\BlotterCaseController;
 use App\Http\Controllers\CaseManagementController;
 use App\Http\Controllers\CaseWorkflowController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\MediationController;
-use App\Http\Controllers\LuponMediationController;
 use App\Http\Controllers\HearingScheduleController;
-use App\Http\Controllers\SettlementResolutionController;
-use App\Http\Controllers\ResidentController;
+use App\Http\Controllers\IncidentAnalyticsController;
+use App\Http\Controllers\LuponMediationController;
+use App\Http\Controllers\MediationController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ResidentController;
+use App\Http\Controllers\SettlementResolutionController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WitnessController;
-use App\Http\Controllers\AuditLogController;
-use App\Http\Controllers\AnalyticsController;
-use App\Http\Controllers\IncidentAnalyticsController;
-use App\Http\Controllers\BackupRestoreController;
 use Illuminate\Support\Facades\Route;
-
 
 /*
 |--------------------------------------------------------------------------
@@ -27,7 +26,6 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::redirect('/', '/login');
-
 
 /*
 |--------------------------------------------------------------------------
@@ -42,14 +40,12 @@ Route::middleware('guest')->group(function () {
         [AuthController::class, 'showLogin']
     )->name('login');
 
-
     Route::post(
         '/login',
         [AuthController::class, 'login']
     )->name('login.attempt');
 
 });
-
 
 /*
 |--------------------------------------------------------------------------
@@ -58,7 +54,6 @@ Route::middleware('guest')->group(function () {
 */
 
 Route::middleware('auth')->group(function () {
-
 
     /*
     |--------------------------------------------------------------------------
@@ -70,7 +65,6 @@ Route::middleware('auth')->group(function () {
         '/dashboard',
         [DashboardController::class, 'index']
     )->name('dashboard');
-
 
     /*
     |--------------------------------------------------------------------------
@@ -93,6 +87,11 @@ Route::middleware('auth')->group(function () {
             'analytics.index'
         );
 
+    Route::post('/analytics/sla/start', [AnalyticsController::class, 'recordSlaStart'])
+        ->middleware('role:barangay_captain,secretary')->name('analytics.sla.start');
+    Route::post('/analytics/sla/extension', [AnalyticsController::class, 'extendSla'])
+        ->middleware('role:barangay_captain,secretary')->name('analytics.sla.extension');
+
     Route::get(
         '/incident-analytics',
         [IncidentAnalyticsController::class, 'index']
@@ -103,8 +102,6 @@ Route::middleware('auth')->group(function () {
         ->name(
             'incident-analytics.index'
         );
-
-
 
     /*
     |--------------------------------------------------------------------------
@@ -143,7 +140,6 @@ Route::middleware('auth')->group(function () {
 
     });
 
-
     /*
     |--------------------------------------------------------------------------
     | People Directory - View / Create / Edit
@@ -159,7 +155,6 @@ Route::middleware('auth')->group(function () {
         'role:barangay_captain,secretary,staff'
     )->group(function () {
 
-
         /*
         |--------------------------------------------------------------------------
         | People Directory
@@ -172,7 +167,6 @@ Route::middleware('auth')->group(function () {
         )->name(
             'residents.index'
         );
-
 
         /*
         |--------------------------------------------------------------------------
@@ -190,7 +184,6 @@ Route::middleware('auth')->group(function () {
         )->name(
             'residents.search'
         );
-
 
         /*
         |--------------------------------------------------------------------------
@@ -210,7 +203,6 @@ Route::middleware('auth')->group(function () {
             'residents.create'
         );
 
-
         /*
         |--------------------------------------------------------------------------
         | Save Person Record
@@ -223,7 +215,6 @@ Route::middleware('auth')->group(function () {
         )->name(
             'residents.store'
         );
-
 
         /*
         |--------------------------------------------------------------------------
@@ -238,7 +229,6 @@ Route::middleware('auth')->group(function () {
             'residents.show'
         );
 
-
         /*
         |--------------------------------------------------------------------------
         | Edit Person Record
@@ -251,7 +241,6 @@ Route::middleware('auth')->group(function () {
         )->name(
             'residents.edit'
         );
-
 
         /*
         |--------------------------------------------------------------------------
@@ -268,7 +257,6 @@ Route::middleware('auth')->group(function () {
         );
 
     });
-
 
     /*
     |--------------------------------------------------------------------------
@@ -291,7 +279,6 @@ Route::middleware('auth')->group(function () {
             'cases.index'
         );
 
-
     /*
     |--------------------------------------------------------------------------
     | Case Management - Manage Case
@@ -312,7 +299,6 @@ Route::middleware('auth')->group(function () {
         ->name(
             'cases.show'
         );
-
 
     /*
     |--------------------------------------------------------------------------
@@ -344,7 +330,6 @@ Route::middleware('auth')->group(function () {
 
     });
 
-
     /*
     |--------------------------------------------------------------------------
     | Case Management - Archive
@@ -365,7 +350,6 @@ Route::middleware('auth')->group(function () {
         ->name(
             'cases.destroy'
         );
-
 
     /*
     |--------------------------------------------------------------------------
@@ -388,7 +372,6 @@ Route::middleware('auth')->group(function () {
             'lupon.index'
         );
 
-
     /*
     |--------------------------------------------------------------------------
     | Hearing Schedules
@@ -405,7 +388,6 @@ Route::middleware('auth')->group(function () {
         ->name(
             'hearings.index'
         );
-
 
     /*
     |--------------------------------------------------------------------------
@@ -434,8 +416,6 @@ Route::middleware('auth')->group(function () {
         ->name(
             'settlements.complete'
         );
-
-
 
     /*
     |--------------------------------------------------------------------------
@@ -467,7 +447,6 @@ Route::middleware('auth')->group(function () {
 
     });
 
-
     /*
     |--------------------------------------------------------------------------
     | Blotter Cases - View
@@ -484,14 +463,12 @@ Route::middleware('auth')->group(function () {
         'role:barangay_captain,secretary,staff,councilor,lupon'
     )->group(function () {
 
-
         Route::get(
             '/blotter',
             [BlotterCaseController::class, 'index']
         )->name(
             'blotter.index'
         );
-
 
         Route::get(
             '/blotter/{blotter}',
@@ -501,7 +478,6 @@ Route::middleware('auth')->group(function () {
         );
 
     });
-
 
     /*
     |--------------------------------------------------------------------------
@@ -517,7 +493,7 @@ Route::middleware('auth')->group(function () {
         '/blotter/{blotter}/assign',
         [
             CaseWorkflowController::class,
-            'assign'
+            'assign',
         ]
     )
         ->middleware(
@@ -526,7 +502,6 @@ Route::middleware('auth')->group(function () {
         ->name(
             'blotter.assign'
         );
-
 
     /*
     |--------------------------------------------------------------------------
@@ -543,7 +518,7 @@ Route::middleware('auth')->group(function () {
         '/blotter/{blotter}/investigation-notes',
         [
             CaseWorkflowController::class,
-            'addInvestigationNote'
+            'addInvestigationNote',
         ]
     )
         ->middleware(
@@ -552,7 +527,6 @@ Route::middleware('auth')->group(function () {
         ->name(
             'blotter.investigation-notes.store'
         );
-
 
     /*
     |--------------------------------------------------------------------------
@@ -571,41 +545,37 @@ Route::middleware('auth')->group(function () {
         'role:barangay_captain,secretary,councilor'
     )->group(function () {
 
-
         Route::post(
             '/blotter/{blotter}/witnesses',
             [
                 WitnessController::class,
-                'store'
+                'store',
             ]
         )->name(
             'blotter.witnesses.store'
         );
 
-
         Route::put(
             '/witnesses/{witness}',
             [
                 WitnessController::class,
-                'update'
+                'update',
             ]
         )->name(
             'witnesses.update'
         );
 
-
         Route::delete(
             '/witnesses/{witness}',
             [
                 WitnessController::class,
-                'destroy'
+                'destroy',
             ]
         )->name(
             'witnesses.destroy'
         );
 
     });
-
 
     /*
     |--------------------------------------------------------------------------
@@ -622,7 +592,7 @@ Route::middleware('auth')->group(function () {
         '/blotter/{blotter}/refer-mediation',
         [
             MediationController::class,
-            'refer'
+            'refer',
         ]
     )
         ->middleware(
@@ -631,7 +601,6 @@ Route::middleware('auth')->group(function () {
         ->name(
             'blotter.mediation.refer'
         );
-
 
     /*
     |--------------------------------------------------------------------------
@@ -649,7 +618,7 @@ Route::middleware('auth')->group(function () {
         '/blotter/{blotter}/mediation/schedule',
         [
             MediationController::class,
-            'schedule'
+            'schedule',
         ]
     )
         ->middleware(
@@ -658,7 +627,6 @@ Route::middleware('auth')->group(function () {
         ->name(
             'blotter.mediation.schedule'
         );
-
 
     /*
     |--------------------------------------------------------------------------
@@ -675,7 +643,7 @@ Route::middleware('auth')->group(function () {
         '/mediation/summons/{summons}',
         [
             MediationController::class,
-            'updateSummons'
+            'updateSummons',
         ]
     )
         ->middleware(
@@ -684,7 +652,6 @@ Route::middleware('auth')->group(function () {
         ->name(
             'mediation.summons.update'
         );
-
 
     /*
     |--------------------------------------------------------------------------
@@ -696,7 +663,7 @@ Route::middleware('auth')->group(function () {
         '/mediation/attendees/{attendee}',
         [
             MediationController::class,
-            'updateAttendance'
+            'updateAttendance',
         ]
     )
         ->middleware(
@@ -705,7 +672,6 @@ Route::middleware('auth')->group(function () {
         ->name(
             'mediation.attendance.update'
         );
-
 
     /*
     |--------------------------------------------------------------------------
@@ -717,7 +683,7 @@ Route::middleware('auth')->group(function () {
         '/mediation/sessions/{session}/outcome',
         [
             MediationController::class,
-            'recordOutcome'
+            'recordOutcome',
         ]
     )
         ->middleware(
@@ -726,7 +692,6 @@ Route::middleware('auth')->group(function () {
         ->name(
             'mediation.outcome.store'
         );
-
 
     /*
     |--------------------------------------------------------------------------
@@ -744,7 +709,6 @@ Route::middleware('auth')->group(function () {
         ->name('admin.')
         ->group(function () {
 
-
             /*
             |--------------------------------------------------------------------------
             | User List
@@ -755,12 +719,11 @@ Route::middleware('auth')->group(function () {
                 '/users',
                 [
                     UserController::class,
-                    'index'
+                    'index',
                 ]
             )->name(
                 'users.index'
             );
-
 
             /*
             |--------------------------------------------------------------------------
@@ -772,12 +735,11 @@ Route::middleware('auth')->group(function () {
                 '/users/create',
                 [
                     UserController::class,
-                    'create'
+                    'create',
                 ]
             )->name(
                 'users.create'
             );
-
 
             /*
             |--------------------------------------------------------------------------
@@ -789,12 +751,11 @@ Route::middleware('auth')->group(function () {
                 '/users',
                 [
                     UserController::class,
-                    'store'
+                    'store',
                 ]
             )->name(
                 'users.store'
             );
-
 
             /*
             |--------------------------------------------------------------------------
@@ -806,12 +767,11 @@ Route::middleware('auth')->group(function () {
                 '/users/{user}/edit',
                 [
                     UserController::class,
-                    'edit'
+                    'edit',
                 ]
             )->name(
                 'users.edit'
             );
-
 
             /*
             |--------------------------------------------------------------------------
@@ -823,12 +783,11 @@ Route::middleware('auth')->group(function () {
                 '/users/{user}',
                 [
                     UserController::class,
-                    'update'
+                    'update',
                 ]
             )->name(
                 'users.update'
             );
-
 
             /*
             |--------------------------------------------------------------------------
@@ -840,12 +799,11 @@ Route::middleware('auth')->group(function () {
                 '/users/{user}/toggle-status',
                 [
                     UserController::class,
-                    'toggleStatus'
+                    'toggleStatus',
                 ]
             )->name(
                 'users.toggle-status'
             );
-
 
             /*
             |--------------------------------------------------------------------------
@@ -857,12 +815,11 @@ Route::middleware('auth')->group(function () {
                 '/audit-trail',
                 [
                     AuditLogController::class,
-                    'index'
+                    'index',
                 ]
             )->name(
                 'audit.index'
             );
-
 
             /*
             |--------------------------------------------------------------------------
@@ -874,12 +831,11 @@ Route::middleware('auth')->group(function () {
                 '/audit-trail/export',
                 [
                     AuditLogController::class,
-                    'export'
+                    'export',
                 ]
             )->name(
                 'audit.export'
             );
-
 
             /*
             |--------------------------------------------------------------------------
@@ -891,12 +847,11 @@ Route::middleware('auth')->group(function () {
                 '/audit-trail/print',
                 [
                     AuditLogController::class,
-                    'print'
+                    'print',
                 ]
             )->name(
                 'audit.print'
             );
-
 
             /*
             |--------------------------------------------------------------------------
@@ -908,7 +863,7 @@ Route::middleware('auth')->group(function () {
                 '/backup-restore',
                 [
                     BackupRestoreController::class,
-                    'index'
+                    'index',
                 ]
             )->name(
                 'backup.index'
@@ -918,7 +873,7 @@ Route::middleware('auth')->group(function () {
                 '/backup-restore/download',
                 [
                     BackupRestoreController::class,
-                    'download'
+                    'download',
                 ]
             )->name(
                 'backup.download'
@@ -928,7 +883,7 @@ Route::middleware('auth')->group(function () {
                 '/backup-restore/validate',
                 [
                     BackupRestoreController::class,
-                    'validateUpload'
+                    'validateUpload',
                 ]
             )->name(
                 'backup.validate'
@@ -938,7 +893,7 @@ Route::middleware('auth')->group(function () {
                 '/backup-restore/restore',
                 [
                     BackupRestoreController::class,
-                    'restore'
+                    'restore',
                 ]
             )->name(
                 'backup.restore'
@@ -948,7 +903,7 @@ Route::middleware('auth')->group(function () {
                 '/backup-restore/safety/{token}',
                 [
                     BackupRestoreController::class,
-                    'downloadSafety'
+                    'downloadSafety',
                 ]
             )
                 ->whereUuid(
@@ -960,7 +915,6 @@ Route::middleware('auth')->group(function () {
 
         });
 
-
     /*
     |--------------------------------------------------------------------------
     | Logout
@@ -971,7 +925,7 @@ Route::middleware('auth')->group(function () {
         '/logout',
         [
             AuthController::class,
-            'logout'
+            'logout',
         ]
     )->name(
         'logout'

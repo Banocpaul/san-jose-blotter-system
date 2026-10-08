@@ -36,6 +36,10 @@ class BlotterCase extends Model
             'incident_date' => 'date',
             'reported_at' => 'datetime',
             'closed_at' => 'datetime',
+            'stage_entered_at' => 'datetime',
+            'tracked_opened_at' => 'datetime',
+            'sla_started_at' => 'datetime',
+            'sla_extension_days' => 'integer',
             'status' => CaseStatus::class,
             'case_stage' => CaseStage::class,
             'record_status' => RecordStatus::class,
@@ -100,6 +104,30 @@ class BlotterCase extends Model
             if (empty($case->reported_at)) {
                 $case->reported_at = now();
             }
+
+            $case->stage_entered_at = now();
+            if ($case->record_status === RecordStatus::Open) {
+                $case->tracked_opened_at = now();
+            }
+            $case->sla_started_at = match ($case->case_stage) {
+                CaseStage::New => $case->reported_at,
+                CaseStage::UnderAssessment => $case->stage_entered_at,
+                default => null,
+            };
+        });
+
+        static::updating(function (BlotterCase $case) {
+            $reopened = $case->isDirty('record_status') && $case->record_status === RecordStatus::Open;
+            if ($case->isDirty('case_stage') || $reopened) {
+                $case->stage_entered_at = now();
+                $case->sla_started_at = in_array($case->case_stage, [CaseStage::New, CaseStage::UnderAssessment], true)
+                    ? $case->stage_entered_at : null;
+                $case->sla_extension_days = 0;
+                $case->sla_extension_reason = null;
+            }
+            if ($reopened && $case->tracked_opened_at === null) {
+                $case->tracked_opened_at = now();
+            }
         });
     }
 
@@ -127,15 +155,14 @@ class BlotterCase extends Model
         if ($role === 'councilor') {
             return $query->whereHas(
                 'assignments',
-                fn (Builder $assignment) =>
-                    $assignment
-                        ->where(
-                            'assigned_to',
-                            $user->id
-                        )
-                        ->whereNull(
-                            'completed_at'
-                        )
+                fn (Builder $assignment) => $assignment
+                    ->where(
+                        'assigned_to',
+                        $user->id
+                    )
+                    ->whereNull(
+                        'completed_at'
+                    )
             );
         }
 
@@ -151,11 +178,10 @@ class BlotterCase extends Model
         if ($role === 'lupon') {
             return $query->whereHas(
                 'mediationSessions',
-                fn (Builder $session) =>
-                    $session->where(
-                        'lupon_member_id',
-                        $user->id
-                    )
+                fn (Builder $session) => $session->where(
+                    'lupon_member_id',
+                    $user->id
+                )
             );
         }
 
@@ -192,43 +218,41 @@ class BlotterCase extends Model
                     )
                     ->orWhereHas(
                         'complainants',
-                        fn (Builder $person) =>
-                            $person
-                                ->where(
-                                    'first_name',
-                                    'like',
-                                    "%{$search}%"
-                                )
-                                ->orWhere(
-                                    'middle_name',
-                                    'like',
-                                    "%{$search}%"
-                                )
-                                ->orWhere(
-                                    'last_name',
-                                    'like',
-                                    "%{$search}%"
-                                )
+                        fn (Builder $person) => $person
+                            ->where(
+                                'first_name',
+                                'like',
+                                "%{$search}%"
+                            )
+                            ->orWhere(
+                                'middle_name',
+                                'like',
+                                "%{$search}%"
+                            )
+                            ->orWhere(
+                                'last_name',
+                                'like',
+                                "%{$search}%"
+                            )
                     )
                     ->orWhereHas(
                         'respondents',
-                        fn (Builder $person) =>
-                            $person
-                                ->where(
-                                    'first_name',
-                                    'like',
-                                    "%{$search}%"
-                                )
-                                ->orWhere(
-                                    'middle_name',
-                                    'like',
-                                    "%{$search}%"
-                                )
-                                ->orWhere(
-                                    'last_name',
-                                    'like',
-                                    "%{$search}%"
-                                )
+                        fn (Builder $person) => $person
+                            ->where(
+                                'first_name',
+                                'like',
+                                "%{$search}%"
+                            )
+                            ->orWhere(
+                                'middle_name',
+                                'like',
+                                "%{$search}%"
+                            )
+                            ->orWhere(
+                                'last_name',
+                                'like',
+                                "%{$search}%"
+                            )
                     );
             }
         );
