@@ -87,7 +87,7 @@ Route::middleware('auth')->group(function () {
         [AnalyticsController::class, 'index']
     )
         ->middleware(
-            'role:barangay_captain,secretary'
+            'role:barangay_captain,secretary,staff'
         )
         ->name(
             'analytics.index'
