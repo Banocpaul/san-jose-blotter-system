@@ -1,6 +1,9 @@
+@if(in_array(auth()->user()->role?->slug, ['barangay_captain', 'secretary'], true))
+    <div class="d-flex justify-content-end mb-3"><a href="{{ route('settings.sla.edit') }}" class="btn btn-outline-primary"><i class="bi bi-gear" aria-hidden="true"></i> SLA Settings</a></div>
+@endif
 <div class="row g-3 mb-4">
-    @include('analytics.partials.metric', ['label' => 'Cases Within SLA', 'value' => number_format($withinSla), 'description' => 'Under 80% of the stage allowance', 'icon' => 'bi-clock'])
-    @include('analytics.partials.metric', ['label' => 'Near SLA', 'value' => number_format($nearSla), 'description' => '80–100% of the allowance used', 'icon' => 'bi-exclamation-triangle', 'tone' => 'metric-warning'])
+    @include('analytics.partials.metric', ['label' => 'Cases Within SLA', 'value' => number_format($withinSla), 'description' => 'Under '.$slaPolicy['near_percent'].'% of the stage allowance', 'icon' => 'bi-clock'])
+    @include('analytics.partials.metric', ['label' => 'Near SLA', 'value' => number_format($nearSla), 'description' => $slaPolicy['near_percent'].'–100% of the allowance used', 'icon' => 'bi-exclamation-triangle', 'tone' => 'metric-warning'])
     @include('analytics.partials.metric', ['label' => 'Beyond SLA', 'value' => number_format($beyondSla), 'description' => 'Past the recorded stage deadline', 'icon' => 'bi-exclamation-circle', 'tone' => 'metric-danger'])
     @include('analytics.partials.metric', ['label' => 'Avg. Processing Time', 'value' => $periodAverageResolution === null ? '—' : number_format($periodAverageResolution, 1).' days', 'description' => 'Report to resolution in '.$periodLabel, 'icon' => 'bi-stopwatch'])
     @include('analytics.partials.metric', ['label' => 'Longest Pending Case', 'value' => $longestPending === null ? '—' : number_format($longestPending->dashboard_age_days, 1).' days', 'description' => $longestPending?->reference_number ?? 'No usable report date', 'icon' => 'bi-hourglass-split'])
@@ -56,9 +59,9 @@
 @endif
 <details class="card mb-4"><summary class="card-header"><strong>SLA Targets & Measurement</strong></summary><div class="card-body">
     <div class="table-responsive"><table class="table table-sm"><thead><tr><th scope="col">Stage</th><th scope="col">Target</th><th scope="col">Clock starts at</th></tr></thead><tbody>
-        @foreach(config('analytics.sla_targets') as $stage => $target)<tr><td>{{ $stage }}</td><td>{{ $target['days'] }} {{ $target['unit'] }} {{ $target['days'] === 1 ? 'day' : 'days' }}</td><td>{{ $target['start'] }}</td></tr>@endforeach
+        @foreach($slaPolicy['targets'] as $stage => $target)<tr><td>{{ $stage }}</td><td>{{ $target['days'] }} {{ $target['unit'] }} {{ $target['days'] === 1 ? 'day' : 'days' }}</td><td>{{ $target['start'] }}</td></tr>@endforeach
     </tbody></table></div>
-    <p class="small text-muted">Within: under 80% used. Near: 80–100% used. Beyond: deadline passed. Working-day targets exclude weekends and the applicable non-working dates recorded for the barangay. {{ count(config('analytics.non_working_dates')) }} holiday dates are currently configured.</p>
-    <p class="small text-muted">These are operational monitoring targets. The 3-day assessment and further-action targets are internal recommendations. Mediation and Pangkat use actual first-meeting dates; a scheduled meeting alone does not start the clock. An extension affects only its recorded Pangkat case.</p>
+    <p class="small text-muted">Within: under {{ $slaPolicy['near_percent'] }}% used. Near: {{ $slaPolicy['near_percent'] }}–100% used. Beyond: deadline passed. Working-day targets exclude weekends and the applicable non-working dates recorded for the barangay. {{ count($slaPolicy['non_working_dates']) }} holiday dates are currently configured.</p>
+    <p class="small text-muted">These are operational monitoring targets. The settings control internal analysis targets. Changes apply to current open cases from their recorded start dates. Mediation and Pangkat use actual first-meeting dates; a scheduled meeting alone does not start the clock. An extension affects only its recorded Pangkat case.</p>
     <p class="small text-muted mb-0">Optional overall case-aging target: {{ $targetDays === null ? 'Not set' : $targetDays.' calendar days' }}. {{ $targetDays === null ? '' : $beyondTargetCases.' open cases exceed that separate report-date target.' }}</p>
 </div></details>

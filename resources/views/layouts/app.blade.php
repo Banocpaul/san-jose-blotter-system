@@ -433,6 +433,14 @@
         @endif
 
 
+        @if(in_array($roleSlug, ['barangay_captain', 'secretary'], true))
+            <div class="sidebar-section">Settings</div>
+            <a href="{{ route('settings.sla.edit') }}" class="sidebar-link {{ request()->routeIs('settings.sla.*') ? 'active' : '' }}">
+                <span class="nav-icon"><i class="bi bi-sliders"></i></span>
+                SLA Settings
+            </a>
+        @endif
+
         @if($canManageUsers)
 
             <div class="sidebar-section">

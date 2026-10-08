@@ -2,11 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Models\AuditLog;
 use App\Models\BlotterCase;
 use App\Models\IncidentType;
 use App\Models\Role;
+use App\Models\SlaSetting;
 use App\Models\User;
 use App\Services\CaseSlaService;
+use App\Services\SlaSettingsService;
 use App\Services\SystemBackupService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -212,7 +215,7 @@ class CaseAnalyticsTest extends TestCase
 
     public function test_working_day_deadlines_skip_weekends_and_configured_holidays(): void
     {
-        config(['analytics.non_working_dates' => ['2026-10-12']]);
+        DB::table('sla_settings')->where('id', 1)->update(['non_working_dates' => json_encode(['2026-10-12'])]);
         $case = $this->case(['case_stage' => 'New', 'sla_started_at' => '2026-10-09 01:00:00']); // Friday 9AM PHT
         $clock = app(CaseSlaService::class);
         $atWeekend = CarbonImmutable::parse('2026-10-11 09:00:00', 'Asia/Manila');
@@ -313,6 +316,114 @@ class CaseAnalyticsTest extends TestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Backup schema mismatch');
         $validate->invoke($service, $doc);
+    }
+
+    public function test_sla_settings_are_editable_only_by_captain_and_secretary(): void
+    {
+        foreach (['barangay_captain', 'secretary'] as $role) {
+            $user = $role === 'secretary' ? $this->secretary : $this->user($role);
+            $this->actingAs($user)->get('/settings/sla')->assertOk()->assertSee('Save SLA Settings')
+                ->assertSee('Near-SLA Warning')->assertSee('Non-Working Dates');
+            $this->put('/settings/sla', $this->slaSettingsPayload())->assertRedirect('/settings/sla')->assertSessionHasNoErrors();
+        }
+        foreach (['staff', 'councilor', 'lupon'] as $role) {
+            $this->actingAs($this->user($role))->get('/settings/sla')->assertForbidden();
+            $this->put('/settings/sla', $this->slaSettingsPayload())->assertForbidden();
+        }
+        $this->actingAs($this->user('staff'))->get('/analytics?tab=bottlenecks')->assertOk()
+            ->assertDontSee('href="http://localhost:8000/settings/sla"', false);
+        $inactive = $this->user('secretary');
+        $inactive->update(['is_active' => false]);
+        $this->actingAs($inactive)->get('/settings/sla')->assertRedirect('/login');
+        $this->get('/settings/sla')->assertRedirect('/login');
+    }
+
+    public function test_saved_sla_settings_change_existing_case_indicators_and_audit_without_changing_case_dates(): void
+    {
+        $case = $this->case(['case_stage' => 'For Mediation', 'sla_started_at' => now()->subDays(12),
+            'reported_at' => now()->subDays(20)]);
+        $before = $case->only(['sla_started_at', 'reported_at', 'case_stage']);
+        $this->actingAs($this->secretary)->get('/analytics?tab=bottlenecks')->assertOk()->assertViewHas('nearSla', 1);
+        $params = $this->slaSettingsPayload();
+        $params['targets'][2]['days'] = 20;
+        $params['near_percent'] = 70;
+        $this->put('/settings/sla', $params)->assertRedirect('/settings/sla')->assertSessionHasNoErrors();
+        $this->get('/settings/sla')->assertOk()->assertSee('value="20"', false)->assertSee('value="70"', false);
+        $this->get('/analytics?tab=bottlenecks')->assertOk()->assertViewHas('withinSla', 1)->assertViewHas('nearSla', 0)
+            ->assertViewHas('slaPolicy', fn ($p) => $p['targets']['For Mediation']['days'] === 20 && $p['near_percent'] === 70)
+            ->assertSee('Under 70%')->assertSee('70–100%');
+        $this->assertEquals($before, $case->fresh()->only(['sla_started_at', 'reported_at', 'case_stage']));
+        $audit = AuditLog::where('action', 'sla_settings_updated')->firstOrFail();
+        $this->assertSame($this->secretary->id, $audit->user_id);
+        $this->assertSame(15, $audit->old_values['targets']['For Mediation']['days']);
+        $this->assertSame(20, $audit->new_values['targets']['For Mediation']['days']);
+        $this->assertSame(70, $audit->new_values['near_percent']);
+        $this->put('/settings/sla', $params)->assertSessionHasErrors('revision');
+        $this->assertSame(1, AuditLog::where('action', 'sla_settings_updated')->count());
+        $this->assertSame(2, SlaSetting::findOrFail(1)->revision);
+    }
+
+    public function test_invalid_sla_settings_are_rejected_without_partial_saves(): void
+    {
+        $this->actingAs($this->secretary);
+        foreach ([['targets.0.days', 0], ['targets.0.days', 366], ['targets.0.days', 'abc'],
+            ['targets.1.unit', 'hours'], ['near_percent', 0], ['near_percent', 100],
+            ['non_working_dates', '2026-02-30'], ['non_working_dates', ['2026-12-25']]] as [$field, $value]) {
+            $params = $this->slaSettingsPayload();
+            data_set($params, $field, $value);
+            $response = $this->put('/settings/sla', $params)->assertRedirect();
+            $response->assertSessionHasErrors($field === 'non_working_dates' && is_string($value) ? 'holiday_dates.0' : $field);
+            $this->assertSame(1, SlaSetting::findOrFail(1)->revision);
+        }
+        $params = $this->slaSettingsPayload();
+        unset($params['targets'][4]);
+        $this->put('/settings/sla', $params)->assertSessionHasErrors('targets');
+        $this->assertSame(0, AuditLog::where('action', 'sla_settings_updated')->count());
+    }
+
+    public function test_saved_holidays_and_day_units_affect_deadlines_and_extensions_stay_calendar_days(): void
+    {
+        $params = $this->slaSettingsPayload();
+        $params['non_working_dates'] = "2026-10-12\n2026-10-12\n\n2026-12-25";
+        $params['targets'][3] = ['days' => 3, 'unit' => 'working'];
+        $this->actingAs($this->secretary)->put('/settings/sla', $params)->assertRedirect('/settings/sla')->assertSessionHasNoErrors();
+        $this->assertSame(['2026-10-12', '2026-12-25'], SlaSetting::findOrFail(1)->non_working_dates);
+        $clock = app(CaseSlaService::class);
+        $asOf = CarbonImmutable::parse('2026-10-11 09:00:00', 'Asia/Manila');
+        $new = $this->case(['case_stage' => 'New', 'sla_started_at' => '2026-10-09 01:00:00']);
+        $this->assertSame('2026-10-13', $clock->evaluate($new, $asOf)['due_at']->toDateString());
+        $pangkat = $this->case(['case_stage' => 'For Pangkat/Conciliation', 'sla_started_at' => '2026-10-09 01:00:00', 'sla_extension_days' => 15]);
+        // 3 working days ends Oct 15 (holiday Oct 12); extension ends Oct 30.
+        $this->assertSame('2026-10-30', $clock->evaluate($pangkat, $asOf)['due_at']->toDateString());
+        $mediation = $this->case(['case_stage' => 'For Mediation', 'sla_started_at' => '2026-10-09 01:00:00']);
+        $this->assertSame('2026-10-24', $clock->evaluate($mediation, $asOf)['due_at']->toDateString());
+    }
+
+    public function test_backups_restore_saved_sla_settings_and_older_backups_preserve_current_policy(): void
+    {
+        $this->user('barangay_captain');
+        $params = $this->slaSettingsPayload();
+        $params['near_percent'] = 60;
+        $this->actingAs($this->secretary)->put('/settings/sla', $params)->assertSessionHasNoErrors();
+        $service = app(SystemBackupService::class);
+        $doc = $service->decodePayload($service->createPayload());
+        $this->assertSame(1, $doc['counts']['sla_settings']);
+        SlaSetting::findOrFail(1)->forceFill(['near_percent' => 75])->save();
+        $service->restore($doc);
+        $this->assertSame(60, SlaSetting::findOrFail(1)->near_percent);
+        unset($doc['schema']['sla_settings'], $doc['tables']['sla_settings'], $doc['counts']['sla_settings']);
+        SlaSetting::findOrFail(1)->forceFill(['near_percent' => 85])->save();
+        $service->restore($doc);
+        $this->assertSame(85, SlaSetting::findOrFail(1)->near_percent);
+    }
+
+    private function slaSettingsPayload(): array
+    {
+        $policy = app(SlaSettingsService::class)->policy();
+
+        return ['revision' => $policy['revision'], 'targets' => array_values(array_map(
+            fn ($t) => ['days' => $t['days'], 'unit' => $t['unit']], $policy['targets'])),
+            'near_percent' => $policy['near_percent'], 'non_working_dates' => implode("\n", $policy['non_working_dates'])];
     }
 
     private function user(string $slug): User

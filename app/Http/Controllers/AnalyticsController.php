@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\AuditLogService;
 use App\Services\BusinessIntelligenceService;
 use App\Services\CaseAnalyticsService;
+use App\Services\SlaSettingsService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -55,6 +56,7 @@ class AnalyticsController extends Controller
             $summary,
             app(BusinessIntelligenceService::class)->summarize(clone $query, $filters, $summary['asOf']),
             [
+                'slaPolicy' => app(SlaSettingsService::class)->policy(),
                 'filters' => $filters,
                 'activeTab' => $filters['tab'] ?? 'operations',
                 'incidentTypes' => IncidentType::orderBy('name')->get(),

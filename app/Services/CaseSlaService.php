@@ -7,15 +7,18 @@ use Carbon\CarbonImmutable;
 
 class CaseSlaService
 {
+    public function __construct(private SlaSettingsService $settings) {}
+
     public function evaluate(BlotterCase $case, CarbonImmutable $asOf): array
     {
-        $target = config('analytics.sla_targets.'.$case->case_stage?->value);
+        $policy = $this->settings->policy();
+        $target = $policy['targets'][$case->case_stage?->value] ?? null;
         $start = $case->sla_started_at ? CarbonImmutable::instance($case->sla_started_at)->setTimezone('Asia/Manila') : null;
         $unknown = ['status' => 'Unavailable', 'due_at' => null, 'progress' => null, 'target' => $target];
         if (! $target || ! $start || $start > $asOf) {
             return $unknown;
         }
-        $days = $target['days'] + (int) $case->sla_extension_days;
+        $days = $target['days'];
         $due = $start;
         for ($i = 0; $i < $days; $i++) {
             $due = $due->addDay();
@@ -25,6 +28,9 @@ class CaseSlaService
                 }
             }
         }
+        // A recorded Pangkat extension always adds calendar days, even if the
+        // operational base target uses working days.
+        $due = $due->addDays((int) $case->sla_extension_days);
         $elapsed = $target['unit'] === 'working'
             ? $this->workingSeconds($start, $asOf->setTimezone('Asia/Manila'))
             : $asOf->getTimestamp() - $start->getTimestamp();
@@ -33,13 +39,13 @@ class CaseSlaService
             : $due->getTimestamp() - $start->getTimestamp();
         $progress = $allowance > 0 ? $elapsed / $allowance : 0;
 
-        return ['status' => $asOf > $due ? 'Beyond SLA' : ($progress >= .8 ? 'Near SLA' : 'Within SLA'),
+        return ['status' => $asOf > $due ? 'Beyond SLA' : ($progress >= $policy['near_percent'] / 100 ? 'Near SLA' : 'Within SLA'),
             'due_at' => $due, 'progress' => $progress, 'target' => $target];
     }
 
     private function isWorkingDate(CarbonImmutable $date): bool
     {
-        return $date->isWeekday() && ! in_array($date->toDateString(), config('analytics.non_working_dates', []), true);
+        return $date->isWeekday() && ! in_array($date->toDateString(), $this->settings->policy()['non_working_dates'], true);
     }
 
     private function workingSeconds(CarbonImmutable $start, CarbonImmutable $end): int
