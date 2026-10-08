@@ -1,8 +1,9 @@
 <?php
 
 return [
-    // Dates in Asia/Manila, YYYY-MM-DD. Maintain the barangay's applicable
-    // national/local non-working holidays here; weekends are always excluded.
+    // Defaults used when editable SLA settings are initialized. Subsequent
+    // target/calendar changes belong in Settings → SLA Settings.
+    // Non-working dates use Asia/Manila, YYYY-MM-DD.
     'non_working_dates' => [],
     'sla_targets' => [
         'New' => ['days' => 1, 'unit' => 'working', 'start' => 'Complaint received'],

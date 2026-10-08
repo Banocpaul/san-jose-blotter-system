@@ -28,6 +28,7 @@ class SystemBackupService
     private array $insertOrder = [
         'roles',
         'users',
+        'sla_settings',
         'incident_types',
         'case_sequences',
         'resident_sequences',
@@ -180,6 +181,9 @@ class SystemBackupService
                  * active. We intentionally do not disable FK checks.
                  */
                 foreach ($deleteOrder as $table) {
+                    if ($table === 'sla_settings' && ! array_key_exists($table, $document['tables'])) {
+                        continue; // Previous backups preserve the current SLA policy.
+                    }
                     DB::table($table)
                         ->delete();
                 }
@@ -190,7 +194,7 @@ class SystemBackupService
                  */
                 foreach ($this->insertOrder as $table) {
                     $rows =
-                        $document['tables'][$table];
+                        $document['tables'][$table] ?? [];
 
                     if (empty($rows)) {
                         continue;
@@ -373,6 +377,10 @@ class SystemBackupService
         }
 
         foreach ($this->insertOrder as $table) {
+            if ($table === 'sla_settings' && ! array_key_exists($table, $document['tables'])
+                && ! array_key_exists($table, $document['schema']) && ! array_key_exists($table, $document['counts'])) {
+                continue; // Backups made before editable SLA settings existed.
+            }
             if (
                 ! array_key_exists(
                     $table,
@@ -436,6 +444,10 @@ class SystemBackupService
                 count(
                     $document['tables'][$table]
                 );
+
+            if ($table === 'sla_settings' && ($actualCount !== 1 || (int) ($document['tables'][$table][0]['id'] ?? 0) !== 1)) {
+                throw new RuntimeException('Backup must contain the saved SLA settings record.');
+            }
 
             if (
                 $declaredCount

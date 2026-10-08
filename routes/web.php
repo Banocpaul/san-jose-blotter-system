@@ -15,6 +15,7 @@ use App\Http\Controllers\MediationController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ResidentController;
 use App\Http\Controllers\SettlementResolutionController;
+use App\Http\Controllers\SlaSettingsController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WitnessController;
 use Illuminate\Support\Facades\Route;
@@ -86,6 +87,11 @@ Route::middleware('auth')->group(function () {
         ->name(
             'analytics.index'
         );
+
+    Route::get('/settings/sla', [SlaSettingsController::class, 'edit'])
+        ->middleware('role:barangay_captain,secretary')->name('settings.sla.edit');
+    Route::put('/settings/sla', [SlaSettingsController::class, 'update'])
+        ->middleware('role:barangay_captain,secretary')->name('settings.sla.update');
 
     Route::post('/analytics/sla/start', [AnalyticsController::class, 'recordSlaStart'])
         ->middleware('role:barangay_captain,secretary')->name('analytics.sla.start');
