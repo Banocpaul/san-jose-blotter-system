@@ -24,8 +24,27 @@
     @endforeach
 </nav>
 
-<div class="card mb-4">
-    <div class="card-header"><strong>Analytics Filters</strong><span class="small text-muted ms-2">Apply to every tab</span></div>
+@php
+    $activeFilterCount = count(array_filter(
+        array_diff_key($filters, ['tab' => true]),
+        fn ($value) => $value !== null && $value !== ''
+    ));
+@endphp
+<details class="card analytics-filters mb-4">
+    <summary class="card-header analytics-filters-toggle">
+        <span class="d-flex flex-wrap align-items-center gap-2">
+            <strong>Analytics Filters</strong>
+            <span class="small text-muted">Apply to every tab</span>
+            @if($activeFilterCount > 0)
+                <span class="badge text-bg-primary">{{ $activeFilterCount }} active</span>
+            @endif
+        </span>
+        <span class="btn btn-outline-primary btn-sm analytics-filters-action">
+            <span class="analytics-filters-show">Show Filters</span>
+            <span class="analytics-filters-hide">Hide Filters</span>
+            <i class="bi bi-chevron-down" aria-hidden="true"></i>
+        </span>
+    </summary>
     <div class="card-body">
         <form method="GET" action="{{ route('analytics.index') }}">
             <input type="hidden" name="tab" value="{{ $activeTab }}">
@@ -104,7 +123,7 @@
             </div>
         </form>
     </div>
-</div>
+</details>
 
 @php
     $cards = match ($activeTab) {
@@ -180,9 +199,17 @@
     .analytics-tab.active { color: #fff; background: var(--accent); border-color: var(--accent); }
     .analytics-tab:hover { border-color: var(--accent); }
     .analytics-tab:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+    .analytics-filters-toggle { display: flex; align-items: center; justify-content: space-between; gap: 1rem; cursor: pointer; list-style: none; }
+    .analytics-filters-toggle::-webkit-details-marker { display: none; }
+    .analytics-filters-toggle:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: var(--radius-sm); }
+    .analytics-filters:not([open]) > .analytics-filters-toggle { border-bottom: 0; }
+    .analytics-filters-action { display: inline-flex; align-items: center; gap: .5rem; flex-shrink: 0; }
+    .analytics-filters-hide, .analytics-filters[open] .analytics-filters-show { display: none; }
+    .analytics-filters[open] .analytics-filters-hide { display: inline; }
+    .analytics-filters[open] .analytics-filters-action i { transform: rotate(180deg); }
     .analytics-chart { height: 340px; }
     .analytics-empty { min-height: 180px; display: grid; place-items: center; text-align: center; }
-    @media (max-width: 575px) { .analytics-tab { width: 100%; } .analytics-chart { height: 300px; } }
+    @media (max-width: 575px) { .analytics-tab { width: 100%; } .analytics-chart { height: 300px; } .analytics-filters-toggle { flex-wrap: wrap; } }
 </style>
 @endpush
 
