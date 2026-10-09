@@ -422,13 +422,13 @@ class SystemBackupService
             sort($currentColumns);
             sort($backupColumns);
 
-            $optionalTimingColumns = $table === 'blotter_cases'
-                ? ['stage_entered_at', 'tracked_opened_at', 'sla_started_at', 'sla_extension_days', 'sla_extension_reason']
+            $optionalCaseColumns = $table === 'blotter_cases'
+                ? ['stage_entered_at', 'tracked_opened_at', 'sla_started_at', 'sla_extension_days', 'sla_extension_reason', 'mediation_requested_at', 'mediation_request_reason', 'pangkat_members', 'pangkat_constituted_at', 'disposition', 'disposition_reason', 'referral_agency', 'further_action_documentation', 'disposed_by', 'disposed_at']
                 : [];
             $missingColumns = array_diff($currentColumns, $backupColumns);
             $extraColumns = array_diff($backupColumns, $currentColumns);
 
-            if ($extraColumns || array_diff($missingColumns, $optionalTimingColumns)) {
+            if ($extraColumns || array_diff($missingColumns, $optionalCaseColumns)) {
                 throw new RuntimeException(
                     "Backup schema mismatch for table {$table}. Run the same application version and migrations before restoring."
                 );

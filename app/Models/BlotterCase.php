@@ -9,6 +9,7 @@ use App\Services\CaseReferenceService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Validation\ValidationException;
 
 class BlotterCase extends Model
 {
@@ -28,6 +29,16 @@ class BlotterCase extends Model
         'created_by',
         'reported_at',
         'closed_at',
+        'mediation_requested_at',
+        'mediation_request_reason',
+        'pangkat_members',
+        'pangkat_constituted_at',
+        'disposition',
+        'disposition_reason',
+        'referral_agency',
+        'further_action_documentation',
+        'disposed_by',
+        'disposed_at',
     ];
 
     protected function casts(): array
@@ -36,6 +47,10 @@ class BlotterCase extends Model
             'incident_date' => 'date',
             'reported_at' => 'datetime',
             'closed_at' => 'datetime',
+            'mediation_requested_at' => 'datetime',
+            'pangkat_members' => 'array',
+            'pangkat_constituted_at' => 'datetime',
+            'disposed_at' => 'datetime',
             'stage_entered_at' => 'datetime',
             'tracked_opened_at' => 'datetime',
             'sla_started_at' => 'datetime',
@@ -225,6 +240,15 @@ class BlotterCase extends Model
     | Relationships
     |--------------------------------------------------------------------------
     */
+
+    public function requireOpenStage(array $stages): void
+    {
+        if ($this->record_status !== RecordStatus::Open || ! in_array($this->case_stage, $stages, true)) {
+            throw ValidationException::withMessages([
+                'workflow' => 'This action is not available in the current case stage or status.',
+            ]);
+        }
+    }
 
     public function incidentType()
     {

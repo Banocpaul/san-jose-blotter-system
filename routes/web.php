@@ -5,6 +5,7 @@ use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BackupRestoreController;
 use App\Http\Controllers\BlotterCaseController;
+use App\Http\Controllers\CaseDispositionController;
 use App\Http\Controllers\CaseManagementController;
 use App\Http\Controllers\CaseWorkflowController;
 use App\Http\Controllers\DashboardController;
@@ -494,6 +495,14 @@ Route::middleware('auth')->group(function () {
     | Secretary
     |
     */
+
+    Route::middleware('role:barangay_captain,secretary')->group(function () {
+        Route::post('/case-management/{blotter}/assessment', [CaseDispositionController::class, 'assess'])->name('cases.assess');
+        Route::post('/case-management/{blotter}/pangkat', [CaseDispositionController::class, 'constitutePangkat'])->name('cases.pangkat');
+        Route::post('/case-management/{blotter}/documentation', [CaseDispositionController::class, 'recordDocumentation'])->name('cases.documentation');
+        Route::post('/case-management/{blotter}/resume-further-action', [CaseDispositionController::class, 'resumeFurtherAction'])->name('cases.resume-further-action');
+        Route::post('/case-management/{blotter}/disposition', [CaseDispositionController::class, 'dispose'])->name('cases.dispose');
+    });
 
     Route::post(
         '/blotter/{blotter}/assign',

@@ -13,12 +13,10 @@ class CaseReferenceService
         return DB::transaction(function () use ($year) {
 
             // Ensure a sequence exists for the current year.
-            DB::statement(
-                'INSERT INTO case_sequences (`year`, `current_number`, `created_at`, `updated_at`)
-                 VALUES (?, 0, NOW(), NOW())
-                 ON DUPLICATE KEY UPDATE `year` = `year`',
-                [$year]
-            );
+            DB::table('case_sequences')->insertOrIgnore([
+                'year' => $year, 'current_number' => 0,
+                'created_at' => now(), 'updated_at' => now(),
+            ]);
 
             // Lock the row so two requests cannot receive the same number.
             $sequence = DB::table('case_sequences')

@@ -181,28 +181,21 @@ class BlotterCaseController extends Controller
                 */
 
                 $case = BlotterCase::create([
-                    'incident_type_id' =>
-                        $data['incident_type_id'],
+                    'incident_type_id' => $data['incident_type_id'],
 
-                    'incident_date' =>
-                        $data['incident_date'],
+                    'incident_date' => $data['incident_date'],
 
-                    'incident_time' =>
-                        $data['incident_time']
+                    'incident_time' => $data['incident_time']
                         ?? null,
 
-                    'location' =>
-                        $data['location'],
+                    'location' => $data['location'],
 
-                    'narrative' =>
-                        $data['narrative'],
+                    'narrative' => $data['narrative'],
 
-                    'initial_action' =>
-                        $data['initial_action']
+                    'initial_action' => $data['initial_action']
                         ?? null,
 
-                    'remarks' =>
-                        $data['remarks']
+                    'remarks' => $data['remarks']
                         ?? null,
 
                     /*
@@ -210,26 +203,21 @@ class BlotterCaseController extends Controller
                      * This will be removed after all modules
                      * are migrated to the new workflow.
                      */
-                    'status' =>
-                        CaseStatus::Pending,
+                    'status' => CaseStatus::Pending,
 
                     /*
                      * Detailed workflow position.
                      */
-                    'case_stage' =>
-                        CaseStage::New,
+                    'case_stage' => CaseStage::New,
 
                     /*
                      * Overall record state.
                      */
-                    'record_status' =>
-                        RecordStatus::Open,
+                    'record_status' => RecordStatus::Open,
 
-                    'created_by' =>
-                        auth()->id(),
+                    'created_by' => auth()->id(),
 
-                    'reported_at' =>
-                        now(),
+                    'reported_at' => now(),
                 ]);
 
                 /*
@@ -261,22 +249,17 @@ class BlotterCaseController extends Controller
                 */
 
                 AuditLogService::log(
-                    action:
-                        'created',
+                    action: 'created',
 
-                    module:
-                        'Blotter Cases',
+                    module: 'Blotter Cases',
 
-                    description:
-                        "Blotter case {$case->reference_number} was created.",
+                    description: "Blotter case {$case->reference_number} was created.",
 
-                    auditable:
-                        $case,
+                    auditable: $case,
 
-                    newValues:
-                        $this->caseAuditSnapshot(
-                            $case
-                        )
+                    newValues: $this->caseAuditSnapshot(
+                        $case
+                    )
                 );
 
                 return $case;
@@ -352,6 +335,7 @@ class BlotterCaseController extends Controller
             'mediationSessions.summons.creator',
 
             'mediationSessions.outcome.recordedBy',
+            'caseResolution',
         ]);
 
         /*
@@ -391,10 +375,7 @@ class BlotterCaseController extends Controller
             ->whereHas(
                 'role',
                 function ($query) {
-                    $query->where(
-                        'slug',
-                        'lupon'
-                    );
+                    $query->whereIn('slug', ['lupon', 'barangay_captain']);
                 }
             )
             ->orderBy(
@@ -405,14 +386,11 @@ class BlotterCaseController extends Controller
         return view(
             'blotter.show',
             [
-                'case' =>
-                    $blotter,
+                'case' => $blotter,
 
-                'councilors' =>
-                    $councilors,
+                'councilors' => $councilors,
 
-                'luponMembers' =>
-                    $luponMembers,
+                'luponMembers' => $luponMembers,
             ]
         );
     }
@@ -449,11 +427,9 @@ class BlotterCaseController extends Controller
         return view(
             'blotter.edit',
             [
-                'case' =>
-                    $blotter,
+                'case' => $blotter,
 
-                'incidentTypes' =>
-                    $incidentTypes,
+                'incidentTypes' => $incidentTypes,
             ]
         );
     }
@@ -480,99 +456,10 @@ class BlotterCaseController extends Controller
         $data =
             $request->validated();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Determine Legacy Status
-        |--------------------------------------------------------------------------
-        */
-
-        $newStatus =
-            isset(
-                $data['status']
-            )
-                ? CaseStatus::from(
-                    $data['status']
-                )
-                : $blotter->status;
-
-        /*
-        |--------------------------------------------------------------------------
-        | Legacy Closed Statuses
-        |--------------------------------------------------------------------------
-        */
-
-        $closedStatuses = [
-            CaseStatus::Settled,
-            CaseStatus::Resolved,
-            CaseStatus::Referred,
-            CaseStatus::Dismissed,
-        ];
-
-        /*
-        |--------------------------------------------------------------------------
-        | Determine Closed Timestamp
-        |--------------------------------------------------------------------------
-        */
-
-        $closedAt =
-            in_array(
-                $newStatus,
-                $closedStatuses,
-                true
-            )
-                ? (
-                    $blotter->closed_at
-                    ?? now()
-                )
-                : null;
-
-        /*
-        |--------------------------------------------------------------------------
-        | Synchronize Detailed Case Stage
-        |--------------------------------------------------------------------------
-        */
-
-        $newCaseStage =
-            CaseStage::fromStatus(
-                $newStatus,
-                $blotter->case_stage
-            );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Synchronize Record Status
-        |--------------------------------------------------------------------------
-        */
-
-        $newRecordStatus =
-            match ($newStatus) {
-
-                CaseStatus::Settled,
-                CaseStatus::Resolved =>
-                    RecordStatus::Resolved,
-
-                CaseStatus::Referred,
-                CaseStatus::Dismissed =>
-                    RecordStatus::Closed,
-
-                default =>
-                    RecordStatus::Open,
-            };
-
-        /*
-        |--------------------------------------------------------------------------
-        | Update Case + Audit Trail
-        |--------------------------------------------------------------------------
-        */
-
         DB::transaction(
             function () use (
                 $blotter,
-                $data,
-                $newStatus,
-                $newCaseStage,
-                $newRecordStatus,
-                $closedAt
+                $data
             ) {
                 $oldValues =
                     $this->caseAuditSnapshot(
@@ -580,88 +467,55 @@ class BlotterCaseController extends Controller
                     );
 
                 $blotter->update([
-                    'incident_type_id' =>
-                        $data[
+                    'incident_type_id' => $data[
                             'incident_type_id'
                         ],
 
-                    'incident_date' =>
-                        $data[
+                    'incident_date' => $data[
                             'incident_date'
                         ],
 
-                    'incident_time' =>
-                        $data[
+                    'incident_time' => $data[
                             'incident_time'
                         ]
                         ?? null,
 
-                    'location' =>
-                        $data[
+                    'location' => $data[
                             'location'
                         ],
 
-                    'narrative' =>
-                        $data[
+                    'narrative' => $data[
                             'narrative'
                         ],
 
-                    'initial_action' =>
-                        $data[
+                    'initial_action' => $data[
                             'initial_action'
                         ]
                         ?? null,
 
-                    'remarks' =>
-                        $data[
+                    'remarks' => $data[
                             'remarks'
                         ]
                         ?? null,
 
-                    /*
-                     * Temporary legacy status.
-                     */
-                    'status' =>
-                        $newStatus,
-
-                    /*
-                     * Detailed workflow stage.
-                     */
-                    'case_stage' =>
-                        $newCaseStage,
-
-                    /*
-                     * Overall record state.
-                     */
-                    'record_status' =>
-                        $newRecordStatus,
-
-                    'closed_at' =>
-                        $closedAt,
                 ]);
 
                 $blotter->refresh();
 
                 AuditLogService::log(
-                    action:
-                        'updated',
+                    action: 'updated',
 
-                    module:
-                        'Blotter Cases',
+                    module: 'Blotter Cases',
 
-                    description:
-                        "Blotter case {$blotter->reference_number} was updated.",
+                    description: "Blotter case {$blotter->reference_number} was updated.",
 
-                    auditable:
-                        $blotter,
+                    auditable: $blotter,
 
-                    oldValues:
-                        $oldValues,
+                    oldValues: $oldValues,
 
-                    newValues:
-                        $this->caseAuditSnapshot(
-                            $blotter
-                        )
+                    newValues: $this->caseAuditSnapshot(
+                        $blotter
+                    )
                 );
             }
         );
@@ -704,28 +558,21 @@ class BlotterCaseController extends Controller
                 $blotter->delete();
 
                 AuditLogService::log(
-                    action:
-                        'archived',
+                    action: 'archived',
 
-                    module:
-                        'Blotter Cases',
+                    module: 'Blotter Cases',
 
-                    description:
-                        "Blotter case {$blotter->reference_number} was archived.",
+                    description: "Blotter case {$blotter->reference_number} was archived.",
 
-                    auditable:
-                        $blotter,
+                    auditable: $blotter,
 
-                    oldValues:
-                        $oldValues,
+                    oldValues: $oldValues,
 
                     newValues: [
-                        'archived' =>
-                            true,
+                        'archived' => true,
 
-                        'archived_at' =>
-                            now()
-                                ->toDateTimeString(),
+                        'archived_at' => now()
+                            ->toDateTimeString(),
                     ]
                 );
             }
@@ -751,98 +598,84 @@ class BlotterCaseController extends Controller
         BlotterCase $case
     ): array {
         return [
-            'reference_number' =>
-                $this->auditAttribute(
-                    $case,
-                    'reference_number'
-                ),
+            'reference_number' => $this->auditAttribute(
+                $case,
+                'reference_number'
+            ),
 
-            'incident_type_id' =>
-                $this->auditAttribute(
-                    $case,
-                    'incident_type_id'
-                ),
+            'incident_type_id' => $this->auditAttribute(
+                $case,
+                'incident_type_id'
+            ),
 
-            'incident_date' =>
-                $this->auditAttribute(
-                    $case,
-                    'incident_date'
-                ),
+            'incident_date' => $this->auditAttribute(
+                $case,
+                'incident_date'
+            ),
 
-            'incident_time' =>
-                $this->auditAttribute(
-                    $case,
-                    'incident_time'
-                ),
+            'incident_time' => $this->auditAttribute(
+                $case,
+                'incident_time'
+            ),
 
-            'location' =>
-                $this->auditAttribute(
-                    $case,
-                    'location'
-                ),
+            'location' => $this->auditAttribute(
+                $case,
+                'location'
+            ),
 
-            'narrative' =>
-                $this->auditAttribute(
-                    $case,
-                    'narrative'
-                ),
+            'narrative' => $this->auditAttribute(
+                $case,
+                'narrative'
+            ),
 
-            'initial_action' =>
-                $this->auditAttribute(
-                    $case,
-                    'initial_action'
-                ),
+            'initial_action' => $this->auditAttribute(
+                $case,
+                'initial_action'
+            ),
 
-            'remarks' =>
-                $this->auditAttribute(
-                    $case,
-                    'remarks'
-                ),
+            'remarks' => $this->auditAttribute(
+                $case,
+                'remarks'
+            ),
 
             /*
              * Legacy compatibility status.
              */
-            'status' =>
-                $this->auditAttribute(
-                    $case,
-                    'status'
-                ),
+            'status' => $this->auditAttribute(
+                $case,
+                'status'
+            ),
 
             /*
              * Client-requested detailed Current Stage.
              */
-            'case_stage' =>
-                $this->auditAttribute(
-                    $case,
-                    'case_stage'
-                ),
+            'case_stage' => $this->auditAttribute(
+                $case,
+                'case_stage'
+            ),
 
             /*
              * Client-requested overall Record Status.
              */
-            'record_status' =>
-                $this->auditAttribute(
-                    $case,
-                    'record_status'
-                ),
+            'record_status' => $this->auditAttribute(
+                $case,
+                'record_status'
+            ),
 
-            'created_by' =>
-                $this->auditAttribute(
-                    $case,
-                    'created_by'
-                ),
+            'created_by' => $this->auditAttribute(
+                $case,
+                'created_by'
+            ),
 
-            'reported_at' =>
-                $this->auditAttribute(
-                    $case,
-                    'reported_at'
-                ),
+            'reported_at' => $this->auditAttribute(
+                $case,
+                'reported_at'
+            ),
 
-            'closed_at' =>
-                $this->auditAttribute(
-                    $case,
-                    'closed_at'
-                ),
+            'closed_at' => $this->auditAttribute(
+                $case,
+                'closed_at'
+            ),
         ];
     }
 
@@ -871,15 +704,13 @@ class BlotterCaseController extends Controller
             );
 
         if (
-            $value instanceof
-            \BackedEnum
+            $value instanceof \BackedEnum
         ) {
             return $value->value;
         }
 
         if (
-            $value instanceof
-            \DateTimeInterface
+            $value instanceof \DateTimeInterface
         ) {
             return $value->format(
                 'Y-m-d H:i:s'

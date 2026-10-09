@@ -32,11 +32,10 @@ class SettlementResolutionController extends Controller
         if ($role === 'lupon') {
             $baseQuery->whereHas(
                 'blotterCase.mediationSessions',
-                fn (Builder $session) =>
-                    $session->where(
-                        'lupon_member_id',
-                        $user->id
-                    )
+                fn (Builder $session) => $session->where(
+                    'lupon_member_id',
+                    $user->id
+                )
             );
         }
 
@@ -48,7 +47,7 @@ class SettlementResolutionController extends Controller
                 "SUM(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) AS completed_count"
             )
             ->selectRaw(
-                "COUNT(*) AS total_count"
+                'COUNT(*) AS total_count'
             )
             ->first();
 
@@ -99,52 +98,49 @@ class SettlementResolutionController extends Controller
                                 )
                                 ->orWhereHas(
                                     'blotterCase',
-                                    fn (Builder $case) =>
-                                        $case->where(
-                                            'reference_number',
+                                    fn (Builder $case) => $case->where(
+                                        'reference_number',
+                                        'like',
+                                        "%{$search}%"
+                                    )
+                                )
+                                ->orWhereHas(
+                                    'blotterCase.complainants',
+                                    fn (Builder $person) => $person
+                                        ->where(
+                                            'first_name',
+                                            'like',
+                                            "%{$search}%"
+                                        )
+                                        ->orWhere(
+                                            'middle_name',
+                                            'like',
+                                            "%{$search}%"
+                                        )
+                                        ->orWhere(
+                                            'last_name',
                                             'like',
                                             "%{$search}%"
                                         )
                                 )
                                 ->orWhereHas(
-                                    'blotterCase.complainants',
-                                    fn (Builder $person) =>
-                                        $person
-                                            ->where(
-                                                'first_name',
-                                                'like',
-                                                "%{$search}%"
-                                            )
-                                            ->orWhere(
-                                                'middle_name',
-                                                'like',
-                                                "%{$search}%"
-                                            )
-                                            ->orWhere(
-                                                'last_name',
-                                                'like',
-                                                "%{$search}%"
-                                            )
-                                )
-                                ->orWhereHas(
                                     'blotterCase.respondents',
-                                    fn (Builder $person) =>
-                                        $person
-                                            ->where(
-                                                'first_name',
-                                                'like',
-                                                "%{$search}%"
-                                            )
-                                            ->orWhere(
-                                                'middle_name',
-                                                'like',
-                                                "%{$search}%"
-                                            )
-                                            ->orWhere(
-                                                'last_name',
-                                                'like',
-                                                "%{$search}%"
-                                            )
+                                    fn (Builder $person) => $person
+                                        ->where(
+                                            'first_name',
+                                            'like',
+                                            "%{$search}%"
+                                        )
+                                        ->orWhere(
+                                            'middle_name',
+                                            'like',
+                                            "%{$search}%"
+                                        )
+                                        ->orWhere(
+                                            'last_name',
+                                            'like',
+                                            "%{$search}%"
+                                        )
                                 );
                         }
                     );
@@ -212,8 +208,7 @@ class SettlementResolutionController extends Controller
 
         if ($resolution->status !== 'Active') {
             return back()->withErrors([
-                'resolution' =>
-                    'Only active settlement records may be completed.',
+                'resolution' => 'Only active settlement records may be completed.',
             ]);
         }
 
@@ -268,19 +263,15 @@ class SettlementResolutionController extends Controller
                 */
 
                 $locked->update([
-                    'resolution_type' =>
-                        'Amicable Settlement',
+                    'resolution_type' => $locked->resolution_type,
 
-                    'status' =>
-                        'Completed',
+                    'status' => 'Completed',
 
-                    'resolved_by' =>
-                        $request
-                            ->user()
-                            ->id,
+                    'resolved_by' => $request
+                        ->user()
+                        ->id,
 
-                    'resolved_at' =>
-                        now(),
+                    'resolved_at' => now(),
                 ]);
 
                 /*
@@ -295,17 +286,13 @@ class SettlementResolutionController extends Controller
                 */
 
                 $case->update([
-                    'status' =>
-                        CaseStatus::Resolved,
+                    'status' => CaseStatus::Resolved,
 
-                    'case_stage' =>
-                        CaseStage::SettledResolved,
+                    'case_stage' => CaseStage::SettledResolved,
 
-                    'record_status' =>
-                        RecordStatus::Resolved,
+                    'record_status' => RecordStatus::Resolved,
 
-                    'closed_at' =>
-                        $case->closed_at
+                    'closed_at' => $case->closed_at
                         ?? now(),
                 ]);
 
@@ -313,58 +300,43 @@ class SettlementResolutionController extends Controller
                 $case->refresh();
 
                 AuditLogService::log(
-                    action:
-                        'settlement_completed',
+                    action: 'settlement_completed',
 
-                    module:
-                        'Settlement & Resolutions',
+                    module: 'Settlement & Resolutions',
 
-                    description:
-                        'Completed the amicable settlement for case '
-                        . $case->reference_number
-                        . '.',
+                    description: 'Completed the settlement record for case '
+                        .$case->reference_number
+                        .'.',
 
-                    auditable:
-                        $locked,
+                    auditable: $locked,
 
                     oldValues: [
-                        'settlement_status' =>
-                            $oldResolutionStatus,
+                        'settlement_status' => $oldResolutionStatus,
 
-                        'case_status' =>
-                            $oldCaseStatus,
+                        'case_status' => $oldCaseStatus,
 
-                        'case_stage' =>
-                            $oldCaseStage,
+                        'case_stage' => $oldCaseStage,
 
-                        'record_status' =>
-                            $oldRecordStatus,
+                        'record_status' => $oldRecordStatus,
                     ],
 
                     newValues: [
-                        'settlement_status' =>
-                            'Completed',
+                        'settlement_status' => 'Completed',
 
-                        'resolution_type' =>
-                            'Amicable Settlement',
+                        'resolution_type' => $locked->resolution_type,
 
-                        'case_status' =>
-                            CaseStatus::Resolved
-                                ->value,
+                        'case_status' => CaseStatus::Resolved
+                            ->value,
 
-                        'case_stage' =>
-                            CaseStage::SettledResolved
-                                ->value,
+                        'case_stage' => CaseStage::SettledResolved
+                            ->value,
 
-                        'record_status' =>
-                            RecordStatus::Resolved
-                                ->value,
+                        'record_status' => RecordStatus::Resolved
+                            ->value,
 
-                        'completed_at' =>
-                            $locked->resolved_at,
+                        'completed_at' => $locked->resolved_at,
 
-                        'case_closed_at' =>
-                            $case->closed_at,
+                        'case_closed_at' => $case->closed_at,
                     ]
                 );
             }
@@ -372,7 +344,7 @@ class SettlementResolutionController extends Controller
 
         return back()->with(
             'success',
-            'Amicable settlement completed successfully.'
+            'Settlement record completed successfully.'
         );
     }
 

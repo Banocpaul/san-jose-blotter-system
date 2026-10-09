@@ -112,61 +112,57 @@ class HearingScheduleController extends Controller
                             $inner
                                 ->whereHas(
                                     'blotterCase',
-                                    fn (Builder $case) =>
-                                        $case->where(
-                                            'reference_number',
-                                            'like',
-                                            "%{$search}%"
-                                        )
+                                    fn (Builder $case) => $case->where(
+                                        'reference_number',
+                                        'like',
+                                        "%{$search}%"
+                                    )
                                 )
                                 ->orWhereHas(
                                     'blotterCase.complainants',
-                                    fn (Builder $person) =>
-                                        $person
-                                            ->where(
-                                                'first_name',
-                                                'like',
-                                                "%{$search}%"
-                                            )
-                                            ->orWhere(
-                                                'middle_name',
-                                                'like',
-                                                "%{$search}%"
-                                            )
-                                            ->orWhere(
-                                                'last_name',
-                                                'like',
-                                                "%{$search}%"
-                                            )
-                                )
-                                ->orWhereHas(
-                                    'blotterCase.respondents',
-                                    fn (Builder $person) =>
-                                        $person
-                                            ->where(
-                                                'first_name',
-                                                'like',
-                                                "%{$search}%"
-                                            )
-                                            ->orWhere(
-                                                'middle_name',
-                                                'like',
-                                                "%{$search}%"
-                                            )
-                                            ->orWhere(
-                                                'last_name',
-                                                'like',
-                                                "%{$search}%"
-                                            )
-                                )
-                                ->orWhereHas(
-                                    'luponMember',
-                                    fn (Builder $member) =>
-                                        $member->where(
-                                            'name',
+                                    fn (Builder $person) => $person
+                                        ->where(
+                                            'first_name',
                                             'like',
                                             "%{$search}%"
                                         )
+                                        ->orWhere(
+                                            'middle_name',
+                                            'like',
+                                            "%{$search}%"
+                                        )
+                                        ->orWhere(
+                                            'last_name',
+                                            'like',
+                                            "%{$search}%"
+                                        )
+                                )
+                                ->orWhereHas(
+                                    'blotterCase.respondents',
+                                    fn (Builder $person) => $person
+                                        ->where(
+                                            'first_name',
+                                            'like',
+                                            "%{$search}%"
+                                        )
+                                        ->orWhere(
+                                            'middle_name',
+                                            'like',
+                                            "%{$search}%"
+                                        )
+                                        ->orWhere(
+                                            'last_name',
+                                            'like',
+                                            "%{$search}%"
+                                        )
+                                )
+                                ->orWhereHas(
+                                    'luponMember',
+                                    fn (Builder $member) => $member->where(
+                                        'name',
+                                        'like',
+                                        "%{$search}%"
+                                    )
                                 );
                         }
                     );
@@ -238,17 +234,18 @@ class HearingScheduleController extends Controller
                 ->whereIn(
                     'case_stage',
                     [
+                        CaseStage::UnderAssessment->value,
                         CaseStage::ForMediation->value,
                         CaseStage::ForPangkatConciliation->value,
                     ]
                 )
+                ->where(fn (Builder $query) => $query->where('case_stage', '<>', CaseStage::UnderAssessment->value)->orWhereNotNull('mediation_requested_at'))
                 ->whereDoesntHave(
                     'mediationSessions',
-                    fn (Builder $query) =>
-                        $query->where(
-                            'status',
-                            'Scheduled'
-                        )
+                    fn (Builder $query) => $query->where(
+                        'status',
+                        'Scheduled'
+                    )
                 )
                 ->with([
                     'incidentType:id,name',
@@ -271,11 +268,7 @@ class HearingScheduleController extends Controller
                 )
                 ->whereHas(
                     'role',
-                    fn (Builder $query) =>
-                        $query->where(
-                            'slug',
-                            'lupon'
-                        )
+                    fn (Builder $query) => $query->whereIn('slug', ['lupon', 'barangay_captain'])
                 )
                 ->orderBy('name')
                 ->get();

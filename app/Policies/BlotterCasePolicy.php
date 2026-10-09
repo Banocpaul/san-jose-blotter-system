@@ -333,6 +333,11 @@ class BlotterCasePolicy
     |--------------------------------------------------------------------------
     */
 
+    public function manageWorkflow(User $user, BlotterCase $case): bool
+    {
+        return $user->is_active && in_array($user->role?->slug, ['barangay_captain', 'secretary'], true);
+    }
+
     public function referToMediation(
         User $user,
         BlotterCase $case

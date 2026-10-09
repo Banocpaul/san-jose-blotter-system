@@ -34,6 +34,8 @@
 @endphp
 
 
+@include('blotter._workflow-summary')
+
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
 
     <div>
@@ -1022,6 +1024,8 @@
 {{-- PAGE HEADER --}}
 {{-- ========================================================= --}}
 
+@include('blotter._workflow-summary')
+
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
 
     <div>
@@ -1031,7 +1035,7 @@
         </h3>
 
         <span class="badge {{ $statusClass }}">
-            {{ $caseStatus }}
+            Case Status: {{ $case->record_status->value }}
         </span>
 
         <span class="badge text-bg-light border text-dark">
@@ -1273,7 +1277,7 @@
             <div class="card-body">
 
 
-                @if(!in_array($caseStatus, $closedStatuses, true))
+                @if(auth()->user()->can('investigate', $case) && $case->record_status === \App\Enums\RecordStatus::Open && in_array($case->case_stage, [\App\Enums\CaseStage::New, \App\Enums\CaseStage::UnderAssessment], true) && ! $case->mediation_requested_at)
 
                     <h6 class="mb-3">
                         Add Investigation Note
@@ -1464,254 +1468,7 @@
             <div class="card-body">
 
 
-                {{-- ================================================= --}}
-                {{-- REFER CASE --}}
-                {{-- ================================================= --}}
-
-                @if(
-                    in_array(
-                        $caseStatus,
-                        [
-                            'Pending',
-                            'Under Investigation'
-                        ],
-                        true
-                    )
-                )
-
-                    <div class="alert alert-info">
-
-                        <strong>
-                            Mediation Available
-                        </strong>
-
-                        <div class="small mt-1">
-                            This case may be referred to the Lupon for mediation.
-                        </div>
-
-                    </div>
-
-
-                    <form
-                        method="POST"
-                        action="{{ route(
-                            'blotter.mediation.refer',
-                            $case
-                        ) }}"
-                        onsubmit="return confirm('Refer this case to mediation?');"
-                    >
-
-                        @csrf
-
-                        <button
-                            type="submit"
-                            class="btn btn-info"
-                        >
-                            Refer to Mediation
-                        </button>
-
-                    </form>
-
-                @endif
-
-
-                {{-- ================================================= --}}
-                {{-- SCHEDULE HEARING --}}
-                {{-- ================================================= --}}
-
-                @if($caseStatus === 'For Mediation')
-
-                    <div class="alert alert-primary mt-3">
-
-                        <strong>
-                            Case is {{ $caseStage }}
-                        </strong>
-
-                        <div class="small mt-1">
-                            The case remains active until the current proceeding outcome is recorded.
-                        </div>
-
-                    </div>
-
-
-                    @if($hasActiveScheduledHearing)
-
-                        <div class="alert alert-warning">
-
-                            This case already has an active scheduled hearing.
-
-                            Complete or reschedule the current hearing before
-                            creating another hearing.
-
-                        </div>
-
-                    @else
-
-                        <h6 class="mb-3">
-                            Schedule {{ $currentProceedingLabel }} Hearing
-                        </h6>
-
-
-                        @if($luponMembers->isEmpty())
-
-                            <div class="alert alert-warning">
-                                No active Lupon Member account is available.
-                            </div>
-
-                        @else
-
-                            <form
-                                method="POST"
-                                action="{{ route(
-                                    'blotter.mediation.schedule',
-                                    $case
-                                ) }}"
-                            >
-
-                                @csrf
-
-
-                                <div class="row g-3">
-
-
-                                    <div class="col-md-6">
-
-                                        <label class="form-label">
-                                            Hearing Date *
-                                        </label>
-
-                                        <input
-                                            type="date"
-                                            name="scheduled_date"
-                                            class="form-control"
-                                            value="{{ old('scheduled_date') }}"
-                                            min="{{ now()->toDateString() }}"
-                                            required
-                                        >
-
-                                    </div>
-
-
-                                    <div class="col-md-6">
-
-                                        <label class="form-label">
-                                            Hearing Time *
-                                        </label>
-
-                                        <input
-                                            type="time"
-                                            name="scheduled_time"
-                                            class="form-control"
-                                            value="{{ old('scheduled_time') }}"
-                                            required
-                                        >
-
-                                    </div>
-
-
-                                    <div class="col-md-6">
-
-                                        <label class="form-label">
-                                            Venue *
-                                        </label>
-
-                                        <input
-                                            type="text"
-                                            name="venue"
-                                            class="form-control"
-                                            value="{{
-                                                old(
-                                                    'venue',
-                                                    'Barangay Hall'
-                                                )
-                                            }}"
-                                            required
-                                        >
-
-                                    </div>
-
-
-                                    <div class="col-md-6">
-
-                                        <label class="form-label">
-                                            Lupon Member *
-                                        </label>
-
-                                        <select
-                                            name="lupon_member_id"
-                                            class="form-select"
-                                            required
-                                        >
-
-                                            <option value="">
-                                                Select Lupon Member
-                                            </option>
-
-
-                                            @foreach(
-                                                $luponMembers
-                                                as $lupon
-                                            )
-
-                                                <option
-                                                    value="{{ $lupon->id }}"
-                                                    @selected(
-                                                        old('lupon_member_id')
-                                                        == $lupon->id
-                                                    )
-                                                >
-
-                                                    {{ $lupon->name }}
-
-                                                </option>
-
-                                            @endforeach
-
-                                        </select>
-
-                                    </div>
-
-
-                                    <div class="col-12">
-
-                                        <label class="form-label">
-                                            Initial {{ $currentProceedingLabel }} Notes
-                                        </label>
-
-                                        <textarea
-                                            name="mediation_notes"
-                                            class="form-control"
-                                            rows="3"
-                                        >{{ old('mediation_notes') }}</textarea>
-
-                                    </div>
-
-
-                                    <div class="col-12">
-
-                                        <button
-                                            type="submit"
-                                            class="btn btn-primary"
-                                        >
-                                            Schedule {{ $currentProceedingLabel }} Hearing
-                                        </button>
-
-                                    </div>
-
-                                </div>
-
-                            </form>
-
-                        @endif
-
-                    @endif
-
-                @endif
-
-
-                {{-- ================================================= --}}
-                {{-- HEARING HISTORY --}}
-                {{-- ================================================= --}}
+                @include('blotter._workflow-actions')
 
                 @if(
                     $case
@@ -1971,7 +1728,7 @@
                                     </div>
 
 
-                                    @if(!$session->outcome)
+                                    @if(!$session->outcome && $session->status === 'Scheduled' && $case->record_status === \App\Enums\RecordStatus::Open && auth()->user()->can('manage', $session))
 
                                         <form
                                             method="POST"
@@ -2202,7 +1959,7 @@
                                         </div>
 
 
-                                        @if(!$session->outcome)
+                                        @if(!$session->outcome && $session->status === 'Scheduled' && $case->record_status === \App\Enums\RecordStatus::Open && auth()->user()->can('manage', $session))
 
                                             <div class="col-md-8">
 
@@ -2512,7 +2269,7 @@
                                 </div>
 
 
-                            @elseif($session->status === 'Scheduled')
+                            @elseif($session->status === 'Scheduled' && $case->record_status === \App\Enums\RecordStatus::Open && auth()->user()->can('manage', $session))
 
 
                                 {{-- ================================= --}}
@@ -2575,15 +2332,7 @@
                                                     Settled
                                                 </option>
 
-                                                <option
-                                                    value="Referred"
-                                                    @selected(
-                                                        old('outcome')
-                                                        === 'Referred'
-                                                    )
-                                                >
-                                                    Referred
-                                                </option>
+
 
                                                 <option
                                                     value="Rescheduled"
@@ -2605,51 +2354,16 @@
                                                     No Agreement
                                                 </option>
 
-                                                <option
-                                                    value="Dismissed"
-                                                    @selected(
-                                                        old('outcome')
-                                                        === 'Dismissed'
-                                                    )
-                                                >
-                                                    Dismissed
-                                                </option>
+
 
                                             </select>
 
                                             <div class="form-text">
                                                 @if(($session->proceeding_type ?: 'Mediation') === 'Mediation')
-                                                    No Agreement automatically advances the case to For Pangkat/Conciliation.
+                                                    No Agreement requires Pangkat constitution and an explicit conciliation schedule.
                                                 @else
-                                                    No Agreement advances the case to For Further Action/CFA.
+                                                    No Agreement keeps the case open for CFA documentation and final disposition.
                                                 @endif
-                                            </div>
-
-                                        </div>
-
-
-                                        <div class="col-md-6">
-
-                                            <label class="form-label">
-                                                Referral Agency
-                                            </label>
-
-                                            <input
-                                                type="text"
-                                                name="referral_agency"
-                                                class="form-control"
-                                                value="{{
-                                                    old(
-                                                        'referral_agency'
-                                                    )
-                                                }}"
-                                                placeholder="Example: Police, Court, other agency"
-                                            >
-
-                                            <div class="form-text">
-
-                                                Required only when the outcome is Referred.
-
                                             </div>
 
                                         </div>
@@ -2685,7 +2399,7 @@
                                                 name="remarks"
                                                 class="form-control"
                                                 rows="3"
-                                                placeholder="Additional hearing remarks"
+                                                placeholder="Required for No Agreement: record why the parties failed to settle."
                                             >{{ old('remarks') }}</textarea>
 
                                         </div>
@@ -3126,6 +2840,7 @@
 
 
                 @if(
+                    auth()->user()->can('assign', $case) && ! $case->mediation_requested_at &&
                     !in_array(
                         $caseStatus,
                         $closedStatuses,

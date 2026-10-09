@@ -32,7 +32,7 @@ enum CaseStage: string
             CaseStatus::ForMediation => self::ForMediation,
             CaseStatus::Settled,
             CaseStatus::Resolved => self::SettledResolved,
-            CaseStatus::Referred => self::ForFurtherActionCfa,
+            CaseStatus::Referred => self::Closed,
             CaseStatus::Dismissed => self::Closed,
         };
     }
@@ -40,7 +40,7 @@ enum CaseStage: string
     public function label(): string
     {
         return match ($this) {
-            self::Closed => 'Dismissed',
+            self::Closed => 'Closed',
             default => $this->value,
         };
     }
