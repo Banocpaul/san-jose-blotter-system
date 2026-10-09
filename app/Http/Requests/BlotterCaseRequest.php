@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\CaseStatus;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -46,8 +45,7 @@ class BlotterCaseRequest extends FormRequest
                 'string',
             ],
             'status' => [
-                'nullable',
-                Rule::enum(CaseStatus::class),
+                'prohibited',
             ],
         ];
 
@@ -83,16 +81,11 @@ class BlotterCaseRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'complainant_resident_id.required' =>
-                'Select the complainant from the People Directory.',
-            'complainant_resident_id.exists' =>
-                'The selected complainant is not an active People Directory record.',
-            'respondent_resident_id.required' =>
-                'Select the respondent from the People Directory.',
-            'respondent_resident_id.exists' =>
-                'The selected respondent is not an active People Directory record.',
-            'respondent_resident_id.different' =>
-                'The complainant and respondent must be different people.',
+            'complainant_resident_id.required' => 'Select the complainant from the People Directory.',
+            'complainant_resident_id.exists' => 'The selected complainant is not an active People Directory record.',
+            'respondent_resident_id.required' => 'Select the respondent from the People Directory.',
+            'respondent_resident_id.exists' => 'The selected respondent is not an active People Directory record.',
+            'respondent_resident_id.different' => 'The complainant and respondent must be different people.',
         ];
     }
 }

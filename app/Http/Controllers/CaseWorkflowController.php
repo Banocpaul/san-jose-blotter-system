@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\AuditLogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class CaseWorkflowController extends Controller
 {
@@ -69,8 +70,7 @@ class CaseWorkflowController extends Controller
             return back()
                 ->withInput()
                 ->withErrors([
-                    'assigned_to' =>
-                        'The selected user must be an active Barangay Councilor.',
+                    'assigned_to' => 'The selected user must be an active Barangay Councilor.',
                 ]);
         }
 
@@ -90,6 +90,7 @@ class CaseWorkflowController extends Controller
 
         if (
             $blotter->record_status !== RecordStatus::Open
+            || $blotter->mediation_requested_at !== null
             ||
             in_array(
                 $blotter->case_stage,
@@ -104,8 +105,7 @@ class CaseWorkflowController extends Controller
             )
         ) {
             return back()->withErrors([
-                'assignment' =>
-                    'This case can no longer be assigned to a Councilor in its current stage.',
+                'assignment' => 'This case can no longer be assigned to a Councilor in its current stage.',
             ]);
         }
 
@@ -138,6 +138,7 @@ class CaseWorkflowController extends Controller
                 if (
                     $lockedCase->record_status
                     !== RecordStatus::Open
+                    || $lockedCase->mediation_requested_at !== null
                     ||
                     in_array(
                         $lockedCase->case_stage,
@@ -183,8 +184,7 @@ class CaseWorkflowController extends Controller
                         );
 
                     $previousAssignment->update([
-                        'completed_at' =>
-                            now(),
+                        'completed_at' => now(),
                     ]);
                 }
 
@@ -196,25 +196,19 @@ class CaseWorkflowController extends Controller
 
                 $newAssignment =
                     CaseAssignment::create([
-                        'blotter_case_id' =>
-                            $lockedCase->id,
+                        'blotter_case_id' => $lockedCase->id,
 
-                        'assigned_to' =>
-                            $councilor->id,
+                        'assigned_to' => $councilor->id,
 
-                        'assigned_by' =>
-                            auth()->id(),
+                        'assigned_by' => auth()->id(),
 
-                        'assignment_notes' =>
-                            $data[
+                        'assignment_notes' => $data[
                                 'assignment_notes'
                             ] ?? null,
 
-                        'assigned_at' =>
-                            now(),
+                        'assigned_at' => now(),
 
-                        'completed_at' =>
-                            null,
+                        'completed_at' => null,
                     ]);
 
                 /*
@@ -227,17 +221,13 @@ class CaseWorkflowController extends Controller
                 */
 
                 $lockedCase->update([
-                    'status' =>
-                        CaseStatus::UnderInvestigation,
+                    'status' => CaseStatus::UnderInvestigation,
 
-                    'case_stage' =>
-                        CaseStage::UnderAssessment,
+                    'case_stage' => CaseStage::UnderAssessment,
 
-                    'record_status' =>
-                        RecordStatus::Open,
+                    'record_status' => RecordStatus::Open,
 
-                    'closed_at' =>
-                        null,
+                    'closed_at' => null,
                 ]);
 
                 /*
@@ -260,80 +250,62 @@ class CaseWorkflowController extends Controller
                         : "Case {$lockedCase->reference_number} was assigned to {$councilor->name}.";
 
                 AuditLogService::log(
-                    action:
-                        $action,
+                    action: $action,
 
-                    module:
-                        'Blotter Cases',
+                    module: 'Blotter Cases',
 
-                    description:
-                        $description,
+                    description: $description,
 
-                    auditable:
-                        $lockedCase,
+                    auditable: $lockedCase,
 
-                    oldValues:
-                        $isReassignment
+                    oldValues: $isReassignment
                             ? [
-                                'assignment_id' =>
-                                    $previousAssignment->id,
+                                'assignment_id' => $previousAssignment->id,
 
-                                'assigned_to' =>
-                                    $previousAssignment->assigned_to,
+                                'assigned_to' => $previousAssignment->assigned_to,
 
-                                'assigned_to_name' =>
-                                    $previousCouncilor?->name,
+                                'assigned_to_name' => $previousCouncilor?->name,
 
-                                'completed_at' =>
-                                    $previousAssignment
-                                        ->completed_at
-                                        ?->format(
-                                            'Y-m-d H:i:s'
-                                        ),
+                                'completed_at' => $previousAssignment
+                                    ->completed_at
+                                    ?->format(
+                                        'Y-m-d H:i:s'
+                                    ),
                             ]
                             : [],
 
                     newValues: [
-                        'assignment_id' =>
-                            $newAssignment->id,
+                        'assignment_id' => $newAssignment->id,
 
-                        'assigned_to' =>
-                            $councilor->id,
+                        'assigned_to' => $councilor->id,
 
-                        'assigned_to_name' =>
-                            $councilor->name,
+                        'assigned_to_name' => $councilor->name,
 
-                        'assigned_by' =>
-                            auth()->id(),
+                        'assigned_by' => auth()->id(),
 
-                        'assignment_notes' =>
-                            $newAssignment
-                                ->assignment_notes,
+                        'assignment_notes' => $newAssignment
+                            ->assignment_notes,
 
-                        'assigned_at' =>
-                            $newAssignment
-                                ->assigned_at
-                                ?->format(
-                                    'Y-m-d H:i:s'
-                                ),
+                        'assigned_at' => $newAssignment
+                            ->assigned_at
+                            ?->format(
+                                'Y-m-d H:i:s'
+                            ),
 
                         /*
                          * Temporary legacy status.
                          */
-                        'case_status' =>
-                            CaseStatus::UnderInvestigation
-                                ->value,
+                        'case_status' => CaseStatus::UnderInvestigation
+                            ->value,
 
                         /*
                          * Client workflow.
                          */
-                        'case_stage' =>
-                            CaseStage::UnderAssessment
-                                ->value,
+                        'case_stage' => CaseStage::UnderAssessment
+                            ->value,
 
-                        'record_status' =>
-                            RecordStatus::Open
-                                ->value,
+                        'record_status' => RecordStatus::Open
+                            ->value,
                     ]
                 );
             }
@@ -342,8 +314,8 @@ class CaseWorkflowController extends Controller
         return back()->with(
             'success',
             'Case assigned successfully to '
-            . $councilor->name
-            . '.'
+            .$councilor->name
+            .'.'
         );
     }
 
@@ -396,8 +368,7 @@ class CaseWorkflowController extends Controller
             !== RecordStatus::Open
         ) {
             return back()->withErrors([
-                'investigation' =>
-                    'Investigation notes cannot be added to a resolved or closed case.',
+                'investigation' => 'Investigation notes cannot be added to a resolved or closed case.',
             ]);
         }
 
@@ -434,24 +405,25 @@ class CaseWorkflowController extends Controller
                     );
                 }
 
+                $this->authorize('investigate', $lockedCase);
+                $lockedCase->requireOpenStage([CaseStage::New, CaseStage::UnderAssessment]);
+                if ($lockedCase->mediation_requested_at) {
+                    throw ValidationException::withMessages(['investigation' => 'Assessment has already been submitted for mediation.']);
+                }
+
                 $investigationNote =
                     InvestigationNote::create([
-                        'blotter_case_id' =>
-                            $lockedCase->id,
+                        'blotter_case_id' => $lockedCase->id,
 
-                        'user_id' =>
-                            auth()->id(),
+                        'user_id' => auth()->id(),
 
-                        'note' =>
-                            $data['note'],
+                        'note' => $data['note'],
 
-                        'action_taken' =>
-                            $data[
+                        'action_taken' => $data[
                                 'action_taken'
                             ] ?? null,
 
-                        'noted_at' =>
-                            now(),
+                        'noted_at' => now(),
                     ]);
 
                 /*
@@ -461,56 +433,43 @@ class CaseWorkflowController extends Controller
                 */
 
                 AuditLogService::log(
-                    action:
-                        'investigation_note_added',
+                    action: 'investigation_note_added',
 
-                    module:
-                        'Blotter Cases',
+                    module: 'Blotter Cases',
 
-                    description:
-                        "Investigation note was added to case {$lockedCase->reference_number}.",
+                    description: "Investigation note was added to case {$lockedCase->reference_number}.",
 
-                    auditable:
-                        $investigationNote,
+                    auditable: $investigationNote,
 
                     newValues: [
-                        'blotter_case_id' =>
-                            $lockedCase->id,
+                        'blotter_case_id' => $lockedCase->id,
 
-                        'reference_number' =>
-                            $lockedCase
-                                ->reference_number,
+                        'reference_number' => $lockedCase
+                            ->reference_number,
 
-                        'investigation_note_id' =>
-                            $investigationNote->id,
+                        'investigation_note_id' => $investigationNote->id,
 
-                        'note' =>
-                            $investigationNote->note,
+                        'note' => $investigationNote->note,
 
-                        'action_taken' =>
-                            $investigationNote
-                                ->action_taken,
+                        'action_taken' => $investigationNote
+                            ->action_taken,
 
-                        'user_id' =>
-                            $investigationNote
-                                ->user_id,
+                        'user_id' => $investigationNote
+                            ->user_id,
 
-                        'case_stage' =>
-                            $lockedCase
-                                ->case_stage
-                                ?->value,
+                        'case_stage' => $lockedCase
+                            ->case_stage
+                            ?->value,
 
-                        'record_status' =>
-                            $lockedCase
-                                ->record_status
-                                ?->value,
+                        'record_status' => $lockedCase
+                            ->record_status
+                            ?->value,
 
-                        'noted_at' =>
-                            $investigationNote
-                                ->noted_at
-                                ?->format(
-                                    'Y-m-d H:i:s'
-                                ),
+                        'noted_at' => $investigationNote
+                            ->noted_at
+                            ?->format(
+                                'Y-m-d H:i:s'
+                            ),
                     ]
                 );
             }
