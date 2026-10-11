@@ -51,8 +51,7 @@ class CaseManagementController extends Controller
             CaseStage::kpiStages()
         )
             ->map(
-                fn (CaseStage $stage) =>
-                    $stage->value
+                fn (CaseStage $stage) => $stage->value
             )
             ->all();
 
@@ -77,12 +76,11 @@ class CaseManagementController extends Controller
         )
             ->mapWithKeys(
                 fn (CaseStage $stage) => [
-                    $stage->value =>
-                        (int) (
-                            $rawStageCounts[
-                                $stage->value
-                            ] ?? 0
-                        ),
+                    $stage->value => (int) (
+                        $rawStageCounts[
+                            $stage->value
+                        ] ?? 0
+                    ),
                 ]
             );
 
@@ -91,6 +89,8 @@ class CaseManagementController extends Controller
         | Main Case Query
         |--------------------------------------------------------------------------
         */
+
+        $searchTerms = BlotterCase::searchTermsFromRequest($request);
 
         $query = (clone $baseQuery)
             ->select([
@@ -110,6 +110,7 @@ class CaseManagementController extends Controller
                  */
                 'blotter_cases.case_stage',
                 'blotter_cases.record_status',
+                'blotter_cases.disposition',
 
                 'blotter_cases.updated_at',
             ])
@@ -122,11 +123,7 @@ class CaseManagementController extends Controller
 
                 'currentAssignment.assignedOfficer:id,name',
             ])
-            ->searchCase(
-                $request
-                    ->string('search')
-                    ->toString()
-            );
+            ->searchTerms($searchTerms);
 
         /*
         |--------------------------------------------------------------------------
@@ -134,31 +131,7 @@ class CaseManagementController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        if ($request->filled('stage')) {
-            $stage =
-                $request
-                    ->string('stage')
-                    ->toString();
-
-            $validStages = array_map(
-                fn (CaseStage $caseStage) =>
-                    $caseStage->value,
-                CaseStage::cases()
-            );
-
-            if (
-                in_array(
-                    $stage,
-                    $validStages,
-                    true
-                )
-            ) {
-                $query->where(
-                    'case_stage',
-                    $stage
-                );
-            }
-        }
+        $query->workflowStage($request->string('stage')->toString());
 
         /*
         |--------------------------------------------------------------------------
@@ -174,8 +147,7 @@ class CaseManagementController extends Controller
 
             $validRecordStatuses =
                 array_map(
-                    fn (RecordStatus $status) =>
-                        $status->value,
+                    fn (RecordStatus $status) => $status->value,
                     RecordStatus::cases()
                 );
 
@@ -256,23 +228,18 @@ class CaseManagementController extends Controller
         return view(
             'cases.index',
             [
-                'cases' =>
-                    $cases,
+                'cases' => $cases,
+                'searchTerms' => $searchTerms,
 
-                'stageCounts' =>
-                    $stageCounts,
+                'stageCounts' => $stageCounts,
 
-                'stages' =>
-                    CaseStage::cases(),
+                'stages' => CaseStage::cases(),
 
-                'kpiStages' =>
-                    CaseStage::kpiStages(),
+                'kpiStages' => CaseStage::kpiStages(),
 
-                'recordStatuses' =>
-                    RecordStatus::cases(),
+                'recordStatuses' => RecordStatus::cases(),
 
-                'incidentTypes' =>
-                    $incidentTypes,
+                'incidentTypes' => $incidentTypes,
             ]
         );
     }

@@ -32,6 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
         controller = new AbortController();
         const currentId = ++requestId;
         const url = new URL(form.action, window.location.href);
+        url.search = new URLSearchParams(new FormData(form)).toString();
         url.searchParams.set('search', input.value.trim());
         if (incidentType.value) url.searchParams.set('incident_type_id', incidentType.value);
         showMessage('Searching blotter records...');

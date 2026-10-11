@@ -94,7 +94,7 @@
                 <div class="col-md-6">
 
                     <label class="form-label">
-                        Current Stage / Case Status
+                        Stage / Outcome / Case Status
                     </label>
 
                     <div class="border rounded p-3 bg-light">
@@ -108,8 +108,7 @@
                                 }}"
                             >
                                 {{
-                                    $case->case_stage?->value
-                                    ?? 'New'
+                                    $case->workflowLabel()
                                 }}
                             </span>
 
