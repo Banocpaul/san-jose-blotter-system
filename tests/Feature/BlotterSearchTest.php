@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Enums\CaseStage;
+use App\Models\BlotterCase;
 use App\Models\IncidentType;
 use App\Models\Role;
 use App\Models\User;
@@ -99,6 +101,82 @@ class BlotterSearchTest extends TestCase
         $this->actingAs($lupon)->getJson('/blotter')->assertOk()->assertJsonCount(1, 'data');
         auth()->forgetGuards();
         $this->getJson('/blotter')->assertUnauthorized();
+    }
+
+    public function test_layered_search_retains_sitio_and_narrows_by_name_in_both_lists_and_suggestions(): void
+    {
+        $inside = $this->record();
+        $outside = $this->record();
+        $otherName = $this->record();
+        foreach ([[$inside, 'Juan', 'Sitio 1'], [$outside, 'Juan', 'Sitio 2'], [$otherName, 'Pedro', 'Sitio 1']] as [$id, $name, $sitio]) {
+            DB::table('case_complainants')->insert(['blotter_case_id' => $id,
+                'first_name' => $name, 'last_name' => 'Cruz', 'sitio' => $sitio]);
+        }
+        foreach (['Sitio 1', 'Sitio Uno'] as $sitio) {
+            $parameters = ['search_terms' => [$sitio], 'search' => 'Juan'];
+            foreach (['/case-management', '/blotter'] as $path) {
+                $this->get($path.'?'.http_build_query($parameters))->assertOk()
+                    ->assertViewHas('cases', fn ($cases) => $cases->modelKeys() === [$inside])
+                    ->assertViewHas('searchTerms', [$sitio, 'Juan'])
+                    ->assertSee('name="search_terms[]"', false);
+            }
+            $this->getJson('/blotter?'.http_build_query($parameters))->assertOk()
+                ->assertJsonCount(1, 'data')->assertJsonPath('data.0.view_url', route('blotter.show', $inside));
+        }
+        $this->get('/case-management?search=Juan')->assertOk()->assertViewHas('cases', fn ($cases) => $cases->total() === 2);
+        $this->get('/case-management')->assertOk()->assertViewHas('searchTerms', [])
+            ->assertViewHas('cases', fn ($cases) => $cases->total() === 3);
+    }
+
+    public function test_layered_search_keeps_visibility_incident_filters_and_pagination(): void
+    {
+        $councilor = $this->user('councilor');
+        for ($i = 0; $i < 17; $i++) {
+            $id = $this->record();
+            DB::table('case_respondents')->insert(['blotter_case_id' => $id,
+                'first_name' => 'Juan', 'last_name' => 'Cruz', 'sitio' => 'Sitio 1']);
+            if ($i < 16) {
+                DB::table('case_assignments')->insert(['blotter_case_id' => $id,
+                    'assigned_to' => $councilor->id, 'assigned_by' => $councilor->id, 'assigned_at' => now()]);
+            }
+        }
+        $parameters = ['search_terms' => ['Sitio 1'], 'search' => 'Juan',
+            'incident_type_id' => $this->incidentType->id];
+        $this->actingAs($councilor)->get('/case-management?'.http_build_query($parameters))->assertOk()
+            ->assertViewHas('cases', fn ($cases) => $cases->total() === 16)
+            ->assertSee('search_terms', false);
+        $parameters['page'] = 2;
+        $this->get('/case-management?'.http_build_query($parameters))->assertOk()
+            ->assertViewHas('cases', fn ($cases) => $cases->count() === 1 && $cases->total() === 16);
+        $parameters['incident_type_id'] = 99999;
+        $this->getJson('/blotter?'.http_build_query($parameters))->assertOk()->assertJsonCount(0, 'data');
+    }
+
+    public function test_closed_outcomes_display_and_filter_without_changing_stored_stages(): void
+    {
+        $dismissed = $this->record(['status' => 'Dismissed', 'case_stage' => 'Closed',
+            'record_status' => 'Closed', 'disposition' => 'Dismissed']);
+        $referred = $this->record(['status' => 'Referred', 'case_stage' => 'Closed',
+            'record_status' => 'Closed', 'disposition' => 'Referred']);
+        $cfa = $this->record(['status' => 'Referred', 'case_stage' => 'Closed',
+            'record_status' => 'Closed', 'disposition' => 'CFA Issued']);
+        $legacy = $this->record(['status' => 'Dismissed', 'case_stage' => 'Closed', 'record_status' => 'Closed']);
+        foreach (['Dismissed' => [$dismissed, $legacy], 'Referred' => [$referred], 'CFA Issued' => [$cfa]] as $label => $ids) {
+            $this->get('/case-management?'.http_build_query(['stage' => $label, 'record_status' => 'Closed']))
+                ->assertOk()->assertViewHas('cases', fn ($cases) => $cases->pluck('id')->sort()->values()->all() === $ids);
+        }
+        foreach ([$dismissed => 'Dismissed', $referred => 'Referred', $cfa => 'CFA Issued', $legacy => 'Dismissed'] as $id => $label) {
+            $case = BlotterCase::findOrFail($id);
+            $this->assertSame($label, $case->workflowLabel());
+            $this->assertSame(CaseStage::Closed, $case->case_stage);
+        }
+        $this->get('/blotter')->assertOk()->assertSee('CFA Issued')->assertSee('Dismissed');
+    }
+
+    public function test_invalid_search_parameters_are_rejected(): void
+    {
+        $this->getJson('/blotter?'.http_build_query(['search_terms' => 'invalid']))->assertUnprocessable();
+        $this->getJson('/case-management?'.http_build_query(['search_terms' => [str_repeat('x', 256)]]))->assertUnprocessable();
     }
 
     private function user(string $slug): User

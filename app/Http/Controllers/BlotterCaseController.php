@@ -31,6 +31,8 @@ class BlotterCaseController extends Controller
 
         $user = auth()->user();
 
+        $searchTerms = BlotterCase::searchTermsFromRequest($request);
+
         $query = BlotterCase::query()
             ->visibleTo($user)
             ->select([
@@ -41,6 +43,7 @@ class BlotterCaseController extends Controller
                 'blotter_cases.status',
                 'blotter_cases.case_stage',
                 'blotter_cases.record_status',
+                'blotter_cases.disposition',
                 'blotter_cases.reported_at',
                 'blotter_cases.location',
             ])
@@ -49,9 +52,7 @@ class BlotterCaseController extends Controller
                 'complainants:id,blotter_case_id,first_name,middle_name,last_name,suffix',
                 'respondents:id,blotter_case_id,first_name,middle_name,last_name,suffix',
             ])
-            ->searchCase(
-                $request->string('search')->toString()
-            );
+            ->searchTerms($searchTerms);
 
         /*
         |--------------------------------------------------------------------------
@@ -108,6 +109,7 @@ class BlotterCaseController extends Controller
             'blotter.index',
             compact(
                 'cases',
+                'searchTerms',
                 'incidentTypes'
             )
         );

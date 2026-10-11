@@ -9,6 +9,7 @@ use App\Services\CaseReferenceService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
 class BlotterCase extends Model
@@ -203,6 +204,69 @@ class BlotterCase extends Model
         return $query;
     }
 
+    public static function searchTermsFromRequest(Request $request): array
+    {
+        $data = $request->validate([
+            'search_terms' => ['nullable', 'array', 'max:10'],
+            'search_terms.*' => ['required', 'string', 'max:255'],
+            'search' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        return collect(array_merge($data['search_terms'] ?? [], [$data['search'] ?? '']))
+            ->map(fn (string $term) => trim($term))
+            ->filter(fn (string $term) => $term !== '')
+            ->unique()->values()->all();
+    }
+
+    public function scopeSearchTerms(Builder $query, array $terms): Builder
+    {
+        foreach ($terms as $term) {
+            $query->searchCase($term);
+        }
+
+        return $query;
+    }
+
+    public function workflowLabel(): string
+    {
+        if ($this->case_stage !== CaseStage::Closed) {
+            return $this->case_stage?->label() ?? 'New';
+        }
+
+        if (in_array($this->disposition, ['Dismissed', 'Referred', 'CFA Issued'], true)) {
+            return $this->disposition;
+        }
+        if ($this->disposition === 'Closed') {
+            return 'Closed — Final Disposition';
+        }
+
+        return match ($this->status) {
+            CaseStatus::Dismissed => 'Dismissed',
+            CaseStatus::Referred => 'Referred',
+            default => 'Closed — Outcome Unrecorded',
+        };
+    }
+
+    public function scopeWorkflowStage(Builder $query, string $stage): Builder
+    {
+        if (in_array($stage, ['Dismissed', 'Referred', 'CFA Issued'], true)) {
+            return $query->where('case_stage', CaseStage::Closed->value)
+                ->where(function (Builder $outcome) use ($stage): void {
+                    $outcome->where('disposition', $stage);
+                    if ($stage !== 'CFA Issued') {
+                        $outcome->orWhere(function (Builder $legacy) use ($stage): void {
+                            $legacy->whereNull('disposition')->where('status', $stage);
+                        });
+                    }
+                });
+        }
+        if (CaseStage::tryFrom($stage)) {
+            $query->where('case_stage', $stage);
+        }
+
+        return $query;
+    }
+
     public function scopeSearchCase(
         Builder $query,
         ?string $search
@@ -213,6 +277,20 @@ class BlotterCase extends Model
 
         if ($search === '') {
             return $query;
+        }
+
+        $sitio = match (mb_strtolower($search)) {
+            'sitio uno', 'sitio one', 'sitio 1' => 'Sitio 1',
+            'sitio dos', 'sitio two', 'sitio 2' => 'Sitio 2',
+            'sitio tres', 'sitio three', 'sitio 3' => 'Sitio 3',
+            'sitio cuatro', 'sitio four', 'sitio 4' => 'Sitio 4',
+            default => null,
+        };
+        if ($sitio !== null) {
+            return $query->where(function (Builder $cases) use ($sitio): void {
+                $cases->whereHas('complainants', fn (Builder $party) => $party->where('sitio', $sitio))
+                    ->orWhereHas('respondents', fn (Builder $party) => $party->where('sitio', $sitio));
+            });
         }
 
         $tokens = preg_split('/\s+/u', $search, -1, PREG_SPLIT_NO_EMPTY);

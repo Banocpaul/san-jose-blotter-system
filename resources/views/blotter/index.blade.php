@@ -65,6 +65,8 @@
             class="row g-2 mb-4 align-items-end"
         >
 
+            @include('components.case-search-terms')
+
             <div class="col-12 col-lg-6 position-relative" data-blotter-search>
 
                 <label class="form-label small text-muted" for="blotter_search">
@@ -75,9 +77,9 @@
                     id="blotter_search"
                     type="search"
                     name="search"
-                    value="{{ request('search') }}"
+                    value=""
                     class="form-control"
-                    placeholder="Case number, person, location..."
+                    placeholder="{{ count($searchTerms) ? 'Add a name, case number, or location...' : 'Search sitio, name, case number, location...' }}"
                     autocomplete="off"
                     aria-controls="blotter_search_results"
                     aria-expanded="false"
@@ -166,7 +168,7 @@
                         <th>Complainant</th>
                         <th>Respondent</th>
                         <th>Date</th>
-                        <th>Current Stage</th>
+                        <th>Stage / Outcome</th>
                         <th>Case Status</th>
                         <th class="text-end">Action</th>
                     </tr>
@@ -184,7 +186,7 @@
 
                             $stageLabel =
                                 $caseStage instanceof \App\Enums\CaseStage
-                                    ? $caseStage->value
+                                    ? $case->workflowLabel()
                                     : ($caseStage ?? 'New');
 
                             $stageClass =

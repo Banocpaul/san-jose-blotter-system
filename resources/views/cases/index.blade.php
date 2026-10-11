@@ -54,7 +54,7 @@
 
             <a
                 href="{{ route('cases.index', [
-                    'stage' => $stage->value
+                    ...request()->except('page'), 'stage' => $stage->value
                 ]) }}"
                 class="text-decoration-none"
             >
@@ -122,6 +122,8 @@
             class="row g-2 align-items-end"
         >
 
+            @include('components.case-search-terms')
+
             {{-- Search --}}
             <div class="col-12 col-lg-4">
 
@@ -134,21 +136,21 @@
                 <input
                     type="text"
                     name="search"
-                    value="{{ request('search') }}"
+                    value=""
                     class="form-control"
-                    placeholder="Case number, person, location..."
+                    placeholder="{{ count($searchTerms) ? 'Add a name, case number, or location...' : 'Search sitio, name, case number, location...' }}"
                 >
 
             </div>
 
 
-            {{-- Current Stage --}}
+            {{-- Stage / Outcome --}}
             <div class="col-12 col-md-4 col-lg-2">
 
                 <label
                     class="form-label small text-muted"
                 >
-                    Current Stage
+                    Stage / Outcome
                 </label>
 
                 <select
@@ -157,7 +159,7 @@
                 >
 
                     <option value="">
-                        All Stages
+                        All Stages / Outcomes
                     </option>
 
                     @foreach($stages as $stage)
@@ -169,9 +171,12 @@
                                 === $stage->value
                             )
                         >
-                            {{ $stage->label() }}
+                            {{ $stage === \App\Enums\CaseStage::Closed ? 'Closed — All Outcomes' : $stage->label() }}
                         </option>
 
+                    @endforeach
+                    @foreach(['Dismissed', 'Referred', 'CFA Issued'] as $outcome)
+                        <option value="{{ $outcome }}" @selected(request('stage') === $outcome)>{{ $outcome }}</option>
                     @endforeach
 
                 </select>
@@ -345,7 +350,7 @@
                     </th>
 
                     <th>
-                        Current Stage
+                        Stage / Outcome
                     </th>
 
                     <th>
@@ -467,7 +472,7 @@
                         </td>
 
 
-                        {{-- Current Stage --}}
+                        {{-- Stage / Outcome --}}
                         <td>
 
                             @if($caseStage)
@@ -475,7 +480,7 @@
                                 <span
                                     class="badge {{ $caseStage->badgeClass() }}"
                                 >
-                                    {{ $caseStage->label() }}
+                                    {{ $case->workflowLabel() }}
                                 </span>
 
                             @else

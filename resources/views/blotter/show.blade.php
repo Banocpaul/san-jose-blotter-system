@@ -14,7 +14,7 @@
 
     $stageLabel =
         $recordStage instanceof \App\Enums\CaseStage
-            ? $recordStage->value
+            ? $case->workflowLabel()
             : ($recordStage ?? 'New');
 
     $stageClass =
@@ -51,7 +51,7 @@
         <div class="d-flex flex-wrap gap-2">
 
             <span class="badge {{ $stageClass }}">
-                Current Stage: {{ $stageLabel }}
+                Stage / Outcome: {{ $stageLabel }}
             </span>
 
             <span class="badge {{ $recordStatusClass }}">
@@ -1039,7 +1039,7 @@
         </span>
 
         <span class="badge text-bg-light border text-dark">
-            Stage: {{ $caseStage }}
+            Stage / Outcome: {{ $case->workflowLabel() }}
         </span>
 
     </div>
