@@ -39,6 +39,12 @@ class MediationController extends Controller
                 throw ValidationException::withMessages(['mediation' => 'Mediation has already been requested.']);
             }
             $case->update(['mediation_requested_at' => now(), 'mediation_request_reason' => $data['mediation_request_reason']]);
+            $case->investigationNotes()->create([
+                'user_id' => auth()->id(),
+                'note' => $data['mediation_request_reason'],
+                'action_taken' => 'Submitted for Mediation Scheduling',
+                'noted_at' => now(),
+            ]);
             $case->assignments()->whereNull('completed_at')->update(['completed_at' => now()]);
             AuditLogService::log(action: 'mediation_requested', module: 'Case Management',
                 description: "Mediation requested for {$case->reference_number}; Secretary scheduling is required.",
@@ -141,8 +147,8 @@ class MediationController extends Controller
                         ->lockForUpdate()
                         ->firstOrFail();
                 $lockedCase->requireOpenStage([CaseStage::UnderAssessment, CaseStage::ForMediation, CaseStage::ForPangkatConciliation]);
-                if ($lockedCase->case_stage === CaseStage::UnderAssessment && ! $lockedCase->mediation_requested_at) {
-                    throw ValidationException::withMessages(['mediation' => 'Record the assessment decision to proceed to mediation first.']);
+                if (! $lockedCase->mediation_requested_at && $lockedCase->case_stage !== CaseStage::ForPangkatConciliation) {
+                    throw ValidationException::withMessages(['mediation' => 'The assigned Councilor must submit this case for mediation before a hearing can be scheduled.']);
                 }
                 if ($lockedCase->mediationSessions()->where('status', 'Scheduled')->exists()) {
                     throw ValidationException::withMessages(['mediation' => 'This case already has an active scheduled hearing.']);

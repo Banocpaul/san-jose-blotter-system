@@ -239,7 +239,7 @@ class HearingScheduleController extends Controller
                         CaseStage::ForPangkatConciliation->value,
                     ]
                 )
-                ->where(fn (Builder $query) => $query->where('case_stage', '<>', CaseStage::UnderAssessment->value)->orWhereNotNull('mediation_requested_at'))
+                ->where(fn (Builder $query) => $query->whereNotNull('mediation_requested_at')->orWhere('case_stage', CaseStage::ForPangkatConciliation->value))
                 ->whereDoesntHave(
                     'mediationSessions',
                     fn (Builder $query) => $query->where(

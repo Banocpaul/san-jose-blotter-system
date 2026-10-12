@@ -342,9 +342,8 @@ class BlotterCasePolicy
         User $user,
         BlotterCase $case
     ): bool {
-        return $this->investigate(
-            $user,
-            $case
-        );
+        return $user->is_active
+            && $user->role?->slug === 'councilor'
+            && $this->investigate($user, $case);
     }
 }
