@@ -1279,9 +1279,14 @@
 
                 @if(auth()->user()->can('investigate', $case) && $case->record_status === \App\Enums\RecordStatus::Open && in_array($case->case_stage, [\App\Enums\CaseStage::New, \App\Enums\CaseStage::UnderAssessment], true) && ! $case->mediation_requested_at)
 
-                    <h6 class="mb-3">
-                        Add Investigation Note
-                    </h6>
+                    <details
+                        class="mb-3"
+                        @if($case->investigationNotes->isEmpty() || $errors->has('note') || $errors->has('action_taken') || old('note') !== null || old('action_taken') !== null) open @endif
+                    >
+                        <summary class="fw-semibold text-primary" style="cursor: pointer;">
+                            Add Investigation Note
+                        </summary>
+                        <div class="mt-3">
 
 
                     <form
@@ -1334,6 +1339,8 @@
                         </button>
 
                     </form>
+                        </div>
+                    </details>
 
 
                     <hr class="my-4">
