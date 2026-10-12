@@ -69,6 +69,43 @@ class CaseWorkflowTest extends TestCase
         $this->assertSame($reference, $case->fresh()->reference_number);
     }
 
+    public function test_secretary_sees_councilor_notes_and_can_only_schedule_after_referral(): void
+    {
+        $case = $this->case();
+        $this->assign($case);
+        $this->actingAs($this->users['secretary'])->get(route('cases.show', $case))
+            ->assertOk()->assertDontSee('Schedule Mediation Hearing');
+        $this->post(route('blotter.mediation.schedule', $case), $this->scheduleData())
+            ->assertSessionHasErrors('mediation');
+        $this->post(route('blotter.mediation.refer', $case), ['mediation_request_reason' => 'Bypass'])
+            ->assertForbidden();
+        $this->actingAs($this->users['councilor'])->post(route('blotter.investigation-notes.store', $case), ['note' => 'Councilor investigation findings'])
+            ->assertSessionHasNoErrors();
+        $this->post(route('blotter.mediation.refer', $case), ['mediation_request_reason' => 'Both parties should attend mediation'])
+            ->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('investigation_notes', [
+            'blotter_case_id' => $case->id, 'user_id' => $this->users['councilor']->id,
+            'note' => 'Both parties should attend mediation', 'action_taken' => 'Submitted for Mediation Scheduling',
+        ]);
+        $this->actingAs($this->users['secretary'])->get(route('cases.show', $case))
+            ->assertOk()->assertSee('Councilor investigation findings')
+            ->assertSee('Both parties should attend mediation')->assertSee('Schedule Mediation Hearing');
+        $this->schedule($case);
+        foreach (['cases.show', 'blotter.show'] as $route) {
+            $this->get(route($route, $case))->assertOk()->assertSee('Both parties should attend mediation');
+        }
+    }
+
+    public function test_mediation_stage_without_referral_cannot_bypass_scheduling_guard(): void
+    {
+        $case = $this->case(['case_stage' => CaseStage::ForMediation]);
+        $this->actingAs($this->users['secretary'])->get(route('cases.show', $case))
+            ->assertOk()->assertDontSee('Schedule Mediation Hearing');
+        $this->post(route('blotter.mediation.schedule', $case), $this->scheduleData())
+            ->assertSessionHasErrors('mediation');
+        $this->assertDatabaseCount('mediation_sessions', 0);
+    }
+
     public function test_mediation_scheduling_requires_date_time_officer_and_no_past_or_duplicate_hearings(): void
     {
         $case = $this->requestedCase();
@@ -203,7 +240,7 @@ class CaseWorkflowTest extends TestCase
     {
         $case = $this->case();
         $this->actingAs($this->users['secretary'])->post(route('blotter.mediation.refer', $case), ['mediation_request_reason' => 'Attempt'])
-            ->assertSessionHasErrors('workflow');
+            ->assertForbidden();
         $this->post(route('blotter.mediation.schedule', $case), $this->scheduleData())->assertSessionHasErrors('workflow');
         $this->post(route('cases.dispose', $case), ['disposition' => 'Dismissed', 'disposition_reason' => 'Attempt'])
             ->assertSessionHasErrors('workflow');
@@ -211,7 +248,7 @@ class CaseWorkflowTest extends TestCase
         $this->actingAs($this->users['councilor'])->post(route('blotter.mediation.refer', $case), [])->assertSessionHasErrors('mediation_request_reason');
         $this->post(route('blotter.mediation.refer', $case), ['mediation_request_reason' => 'Suitable'])->assertSessionHasNoErrors();
         $this->assertNull($case->currentAssignment()->first());
-        $this->actingAs($this->users['secretary'])->post(route('blotter.mediation.refer', $case), ['mediation_request_reason' => 'Repeat'])->assertSessionHasErrors('mediation');
+        $this->actingAs($this->users['secretary'])->post(route('blotter.mediation.refer', $case), ['mediation_request_reason' => 'Repeat'])->assertForbidden();
         $this->post(route('blotter.assign', $case), ['assigned_to' => $this->users['councilor']->id])->assertSessionHasErrors('assignment');
         $session = $this->schedule($case);
         $this->actingAs($this->users['lupon'])->post(route('mediation.outcome.store', $session), ['outcome' => 'Settled', 'agreement_details' => 'Attempt early'])
