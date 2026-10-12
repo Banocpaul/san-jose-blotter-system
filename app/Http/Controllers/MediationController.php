@@ -147,7 +147,7 @@ class MediationController extends Controller
                         ->lockForUpdate()
                         ->firstOrFail();
                 $lockedCase->requireOpenStage([CaseStage::UnderAssessment, CaseStage::ForMediation, CaseStage::ForPangkatConciliation]);
-                if (! $lockedCase->mediation_requested_at) {
+                if (! $lockedCase->mediation_requested_at && $lockedCase->case_stage !== CaseStage::ForPangkatConciliation) {
                     throw ValidationException::withMessages(['mediation' => 'The assigned Councilor must submit this case for mediation before a hearing can be scheduled.']);
                 }
                 if ($lockedCase->mediationSessions()->where('status', 'Scheduled')->exists()) {

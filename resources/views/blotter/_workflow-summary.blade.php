@@ -7,7 +7,7 @@
         <div style="white-space: pre-line;">{{ $case->mediation_request_reason }}</div>
         <small class="text-muted">Submitted {{ $case->mediation_requested_at->timezone('Asia/Manila')->format('M d, Y h:i A') }} (Philippine time)</small>
     </div></div>
-@elseif($case->record_status === \App\Enums\RecordStatus::Open && auth()->user()->can('manageWorkflow', $case))
+@elseif(in_array($case->case_stage, [\App\Enums\CaseStage::New, \App\Enums\CaseStage::UnderAssessment, \App\Enums\CaseStage::ForMediation], true) && $case->record_status === \App\Enums\RecordStatus::Open && auth()->user()->can('manageWorkflow', $case))
     <div class="alert alert-secondary">Awaiting the assigned Councilor's referral for mediation. Hearing scheduling is unavailable until the referral is submitted.</div>
 @endif
 @if($case->pangkat_members)
