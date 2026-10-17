@@ -6,7 +6,9 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BackupRestoreController;
 use App\Http\Controllers\BlotterCaseController;
 use App\Http\Controllers\CaseDispositionController;
+use App\Http\Controllers\CaseJurisdictionController;
 use App\Http\Controllers\CaseManagementController;
+use App\Http\Controllers\CaseNotificationController;
 use App\Http\Controllers\CaseWorkflowController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HearingScheduleController;
@@ -19,6 +21,7 @@ use App\Http\Controllers\SettlementResolutionController;
 use App\Http\Controllers\SlaSettingsController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WitnessController;
+use App\Http\Middleware\ProtectPrivateRecords;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -28,6 +31,7 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::redirect('/', '/login');
+Route::view('/privacy-notice', 'privacy-notice')->name('privacy.notice');
 
 /*
 |--------------------------------------------------------------------------
@@ -55,7 +59,8 @@ Route::middleware('guest')->group(function () {
 |--------------------------------------------------------------------------
 */
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', ProtectPrivateRecords::class])->group(function () {
+    Route::view('/roles-and-responsibilities', 'roles-and-responsibilities')->name('roles.responsibilities');
 
     /*
     |--------------------------------------------------------------------------
@@ -497,6 +502,11 @@ Route::middleware('auth')->group(function () {
     */
 
     Route::middleware('role:barangay_captain,secretary')->group(function () {
+        Route::put('/case-management/{blotter}/jurisdiction', [CaseJurisdictionController::class, 'update'])->name('cases.jurisdiction');
+        Route::get('/case-management/{blotter}/notifications', [CaseNotificationController::class, 'index'])->name('cases.notifications.index');
+        Route::post('/case-management/{blotter}/notifications/contacts', [CaseNotificationController::class, 'store'])->name('cases.notifications.store');
+        Route::patch('/case-management/{blotter}/notifications/contacts/{contact}', [CaseNotificationController::class, 'disable'])->name('cases.notifications.disable');
+        Route::post('/case-management/{blotter}/notifications/{delivery}/retry', [CaseNotificationController::class, 'retry'])->whereUuid('delivery')->name('cases.notifications.retry');
         Route::post('/case-management/{blotter}/assessment', [CaseDispositionController::class, 'assess'])->name('cases.assess');
         Route::post('/case-management/{blotter}/pangkat', [CaseDispositionController::class, 'constitutePangkat'])->name('cases.pangkat');
         Route::post('/case-management/{blotter}/documentation', [CaseDispositionController::class, 'recordDocumentation'])->name('cases.documentation');

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Role;
 use App\Models\User;
+use App\Services\AuditLogService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -176,34 +177,30 @@ class UserController extends Controller
             return back()
                 ->withInput()
                 ->withErrors([
-                    'role_id' =>
-                        'The selected role is not active.',
+                    'role_id' => 'The selected role is not active.',
                 ]);
         }
 
-        User::create([
-            'name' =>
-                $data['name'],
+        $user = User::create([
+            'name' => $data['name'],
 
-            'username' =>
-                $data['username'],
+            'username' => $data['username'],
 
-            'email' =>
-                $data['email'],
+            'email' => $data['email'],
 
-            'contact_number' =>
-                $data['contact_number']
+            'contact_number' => $data['contact_number']
                 ?? null,
 
-            'role_id' =>
-                $data['role_id'],
+            'role_id' => $data['role_id'],
 
-            'password' =>
-                $data['password'],
+            'password' => $data['password'],
 
-            'is_active' =>
-                $data['is_active'],
+            'is_active' => $data['is_active'],
         ]);
+
+        AuditLogService::log(action: 'account_created', module: 'User Management',
+            description: 'An individual system account and role were assigned.', auditable: $user,
+            newValues: $user->only(['id', 'username', 'role_id', 'is_active']));
 
         return redirect()
             ->route('admin.users.index')
@@ -331,30 +328,23 @@ class UserController extends Controller
             return back()
                 ->withInput()
                 ->withErrors([
-                    'role_id' =>
-                        'The selected role is not active.',
+                    'role_id' => 'The selected role is not active.',
                 ]);
         }
 
         $updates = [
-            'name' =>
-                $data['name'],
+            'name' => $data['name'],
 
-            'username' =>
-                $data['username'],
+            'username' => $data['username'],
 
-            'email' =>
-                $data['email'],
+            'email' => $data['email'],
 
-            'contact_number' =>
-                $data['contact_number']
+            'contact_number' => $data['contact_number']
                 ?? null,
 
-            'role_id' =>
-                $data['role_id'],
+            'role_id' => $data['role_id'],
 
-            'is_active' =>
-                $data['is_active'],
+            'is_active' => $data['is_active'],
         ];
 
         if (
@@ -366,9 +356,14 @@ class UserController extends Controller
                 $data['password'];
         }
 
+        $oldAccess = $user->only(['username', 'role_id', 'is_active']);
         $user->update(
             $updates
         );
+
+        AuditLogService::log(action: 'account_updated', module: 'User Management',
+            description: 'A system account was updated.', auditable: $user,
+            oldValues: $oldAccess, newValues: $user->only(['username', 'role_id', 'is_active']));
 
         return redirect()
             ->route('admin.users.index')
@@ -392,15 +387,18 @@ class UserController extends Controller
         ) {
             return back()
                 ->withErrors([
-                    'user' =>
-                        'You cannot deactivate your own account.',
+                    'user' => 'You cannot deactivate your own account.',
                 ]);
         }
 
+        $oldActive = $user->is_active;
         $user->update([
-            'is_active' =>
-                ! $user->is_active,
+            'is_active' => ! $user->is_active,
         ]);
+
+        AuditLogService::log(action: 'account_status_changed', module: 'User Management',
+            description: 'System account activation status changed.', auditable: $user,
+            oldValues: ['is_active' => $oldActive], newValues: ['is_active' => $user->is_active]);
 
         return back()->with(
             'success',

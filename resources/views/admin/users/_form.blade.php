@@ -1,5 +1,7 @@
 <div class="row g-3">
 
+    <div class="col-12"><div class="alert alert-info mb-0">Choose the role that matches this person's duties. Councilors receive case access through assignment; Lupon members receive access through assigned hearings. <a href="{{ route('roles.responsibilities') }}">View responsibilities and access limits</a>.</div></div>
+
     <div class="col-md-6">
 
         <label class="form-label">

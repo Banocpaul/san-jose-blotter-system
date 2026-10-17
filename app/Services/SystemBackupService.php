@@ -37,6 +37,9 @@ class SystemBackupService
         'case_complainants',
         'case_respondents',
         'case_witnesses',
+        'case_jurisdiction_assessments',
+        'case_notification_contacts',
+        'case_notification_deliveries',
         'case_assignments',
         'investigation_notes',
         'mediation_sessions',
@@ -377,6 +380,11 @@ class SystemBackupService
         }
 
         foreach ($this->insertOrder as $table) {
+            if (in_array($table, ['case_jurisdiction_assessments', 'case_notification_contacts', 'case_notification_deliveries'], true)
+                && ! array_key_exists($table, $document['tables'])
+                && ! array_key_exists($table, $document['schema']) && ! array_key_exists($table, $document['counts'])) {
+                continue;
+            }
             if ($table === 'sla_settings' && ! array_key_exists($table, $document['tables'])
                 && ! array_key_exists($table, $document['schema']) && ! array_key_exists($table, $document['counts'])) {
                 continue; // Backups made before editable SLA settings existed.

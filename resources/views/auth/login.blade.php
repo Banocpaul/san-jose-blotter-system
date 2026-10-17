@@ -130,6 +130,8 @@
 
             </form>
 
+            <p class="small text-muted mt-3 mb-0">For authorized barangay personnel. Use your own account and keep case information confidential. <a href="{{ route('privacy.notice') }}">Read the privacy notice</a>.</p>
+
         </div>
 
     </div>

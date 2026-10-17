@@ -8,6 +8,8 @@ use App\Enums\RecordStatus;
 use App\Services\CaseReferenceService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -60,6 +62,16 @@ class BlotterCase extends Model
             'case_stage' => CaseStage::class,
             'record_status' => RecordStatus::class,
         ];
+    }
+
+    public function jurisdictionAssessment(): HasOne
+    {
+        return $this->hasOne(CaseJurisdictionAssessment::class);
+    }
+
+    public function notificationContacts(): HasMany
+    {
+        return $this->hasMany(CaseNotificationContact::class);
     }
 
     protected static function booted(): void

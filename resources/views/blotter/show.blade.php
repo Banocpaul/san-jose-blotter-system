@@ -5,6 +5,8 @@
 
 @section('content')
 
+@include('blotter._jurisdiction-review')
+
 @if(request()->routeIs('blotter.show'))
 
 
