@@ -13,6 +13,7 @@ use App\Models\MediationSession;
 use App\Models\MediationSummons;
 use App\Models\User;
 use App\Services\AuditLogService;
+use App\Services\CaseJurisdictionService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -35,6 +36,7 @@ class MediationController extends Controller
             $case = BlotterCase::whereKey($blotter->id)->lockForUpdate()->firstOrFail();
             $this->authorize('referToMediation', $case);
             $case->requireOpenStage([CaseStage::UnderAssessment]);
+            app(CaseJurisdictionService::class)->requireApproval($case);
             if ($case->mediation_requested_at) {
                 throw ValidationException::withMessages(['mediation' => 'Mediation has already been requested.']);
             }
@@ -150,6 +152,7 @@ class MediationController extends Controller
                 if (! $lockedCase->mediation_requested_at && $lockedCase->case_stage !== CaseStage::ForPangkatConciliation) {
                     throw ValidationException::withMessages(['mediation' => 'The assigned Councilor must submit this case for mediation before a hearing can be scheduled.']);
                 }
+                app(CaseJurisdictionService::class)->requireApproval($lockedCase);
                 if ($lockedCase->mediationSessions()->where('status', 'Scheduled')->exists()) {
                     throw ValidationException::withMessages(['mediation' => 'This case already has an active scheduled hearing.']);
                 }

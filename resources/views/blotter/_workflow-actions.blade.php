@@ -7,7 +7,8 @@
         && $latest->outcome?->outcome === 'No Agreement';
     $needsPangkat = $failedMediation || $case->pangkat_constituted_at || $stage === \App\Enums\CaseStage::ForPangkatConciliation;
     $proceeding = $needsPangkat ? 'Pangkat Conciliation' : 'Mediation';
-    $canSchedule = $open && ($case->mediation_requested_at || $stage === \App\Enums\CaseStage::ForPangkatConciliation) && ! $hasActiveScheduledHearing &&
+    $jurisdictionApproved = app(\App\Services\CaseJurisdictionService::class)->isApproved($case);
+    $canSchedule = $jurisdictionApproved && $open && ($case->mediation_requested_at || $stage === \App\Enums\CaseStage::ForPangkatConciliation) && ! $hasActiveScheduledHearing &&
         (($stage === \App\Enums\CaseStage::UnderAssessment && $case->mediation_requested_at)
         || in_array($stage, [\App\Enums\CaseStage::ForMediation, \App\Enums\CaseStage::ForPangkatConciliation], true));
 @endphp
@@ -20,7 +21,7 @@
     </form>
 @endif
 
-@if($open && $stage === \App\Enums\CaseStage::UnderAssessment && ! $case->mediation_requested_at && auth()->user()->can('referToMediation', $case))
+@if($jurisdictionApproved && $open && $stage === \App\Enums\CaseStage::UnderAssessment && ! $case->mediation_requested_at && auth()->user()->can('referToMediation', $case))
     <form method="POST" action="{{ route('blotter.mediation.refer', $case) }}" class="mb-3">
         @csrf
         <label class="form-label">Assessment findings / reason to proceed to mediation *</label>

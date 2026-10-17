@@ -12,6 +12,9 @@
         'case_respondents' => 'Respondents',
         'case_witnesses' => 'Witnesses',
         'case_assignments' => 'Case Assignments',
+        'case_jurisdiction_assessments' => 'Jurisdiction Reviews',
+        'case_notification_contacts' => 'Notification Contacts',
+        'case_notification_deliveries' => 'Notification History',
         'investigation_notes' => 'Investigation Notes',
         'mediation_sessions' => 'Hearings',
         'mediation_outcomes' => 'Mediation Outcomes',
@@ -67,6 +70,17 @@
 @endif
 
 <div class="row g-4 mb-4">
+    <div class="col-12"><div class="card shadow-sm"><div class="card-body">
+        <h5>Local Backup Procedure</h5>
+        <ol class="mb-2">
+            <li>The Captain downloads a new encrypted backup after significant record updates and according to the barangay's backup schedule.</li>
+            <li>Save the file on an access-controlled barangay computer. Keep a second copy on approved encrypted offline storage, with the date and custodian recorded.</li>
+            <li>Keep the recovery encryption key separately in the approved password vault. Losing this key prevents recovery of encrypted records and backups.</li>
+            <li>Test recovery in an isolated installation with the same application version and key. Check the record counts and case relationships before relying on the copy.</li>
+            <li>For a live restore, coordinate with users, validate the selected file, review its contents, and confirm with the Captain's password. Download the pre-restore safety copy.</li>
+        </ol>
+        <p class="small text-muted mb-0">The backup contains application records, including jurisdiction reviews and notification history. It does not contain the application source, deployment settings, or uploaded files. Restored queued notices require an explicit retry if no queue job remains.</p>
+    </div></div></div>
     <div class="col-12 col-xl-6">
         <div class="card shadow-sm h-100">
             <div class="card-header bg-white">

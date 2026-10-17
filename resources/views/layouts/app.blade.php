@@ -176,6 +176,11 @@
 
     <nav class="sidebar-nav">
 
+        <a href="{{ route('roles.responsibilities') }}" class="sidebar-link {{ request()->routeIs('roles.responsibilities') ? 'active' : '' }}">
+            <span class="nav-icon"><i class="bi bi-person-badge"></i></span>
+            Roles &amp; Responsibilities
+        </a>
+
         <div class="sidebar-section">
             Overview
         </div>
@@ -628,6 +633,8 @@
     <main class="page-content">
 
         @yield('content')
+
+        <p class="small text-muted mt-4"><a href="{{ route('privacy.notice') }}">Privacy Notice</a> · Access personal information only for an authorized barangay task.</p>
 
     </main>
 

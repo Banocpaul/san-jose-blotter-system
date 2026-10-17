@@ -306,6 +306,7 @@ class BlotterCaseController extends Controller
         */
 
         $blotter->load([
+            'jurisdictionAssessment.reviewer',
             'incidentType',
 
             'creator.role',

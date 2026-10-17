@@ -353,6 +353,7 @@ class CaseWorkflowTest extends TestCase
     public function test_legacy_pangkat_records_can_continue_without_rewriting_their_history(): void
     {
         $case = $this->case(['case_stage' => CaseStage::ForPangkatConciliation, 'status' => CaseStatus::ForMediation]);
+        $this->approveJurisdiction($case);
         $members = [$this->users['lupon']->id, $this->user('lupon')->id, $this->user('lupon')->id];
         $this->actingAs($this->users['secretary'])->post(route('cases.pangkat', $case), ['pangkat_member_ids' => $members])->assertSessionHasNoErrors();
         $session = $this->schedule($case);
@@ -444,8 +445,17 @@ class CaseWorkflowTest extends TestCase
 
     private function assign(BlotterCase $case): void
     {
+        $this->approveJurisdiction($case);
         $this->actingAs($this->users['secretary'])->post(route('blotter.assign', $case), ['assigned_to' => $this->users['councilor']->id])
             ->assertSessionHasNoErrors();
+    }
+
+    private function approveJurisdiction(BlotterCase $case): void
+    {
+        $this->actingAs($this->users['secretary'])->put(route('cases.jurisdiction', $case), [
+            'decision' => 'within_authority', 'authority_basis' => 'Test official confirms applicable settlement authority.',
+            'venue_basis' => 'Test official verified proper barangay venue.', 'exclusions_reviewed' => '1',
+        ])->assertSessionHasNoErrors();
     }
 
     private function scheduleData(array $overrides = []): array
@@ -487,6 +497,7 @@ class CaseWorkflowTest extends TestCase
     {
         $case->complainants()->create(['first_name' => 'First', 'last_name' => 'Complainant']);
         $case->respondents()->create(['first_name' => 'First', 'last_name' => 'Respondent']);
+        $this->approveJurisdiction($case);
     }
 
     private function assertState(BlotterCase $case, CaseStage $stage, RecordStatus $status): void

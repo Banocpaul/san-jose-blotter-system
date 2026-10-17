@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Services\AuditLogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
@@ -43,6 +45,12 @@ class AuthController extends Controller
             ],
         ]);
 
+        $throttleKey = 'login:'.hash('sha256', Str::lower($credentials['username']).'|'.$request->ip());
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            return back()->withErrors(['username' => 'Too many sign-in attempts. Please try again in a minute.'])
+                ->onlyInput('username');
+        }
+
         /*
          * Attempt authentication.
          */
@@ -52,10 +60,11 @@ class AuthController extends Controller
                 $request->boolean('remember')
             )
         ) {
+            RateLimiter::hit($throttleKey, 60);
+
             return back()
                 ->withErrors([
-                    'username' =>
-                        'Invalid username or password.',
+                    'username' => 'Invalid username or password.',
                 ])
                 ->onlyInput('username');
         }
@@ -72,7 +81,8 @@ class AuthController extends Controller
         /*
          * Reject inactive accounts.
          */
-        if (! $user->is_active) {
+        if (! $user->is_active || ! $user->role?->is_active
+            || ! in_array($user->role->slug, ['barangay_captain', 'secretary', 'staff', 'councilor', 'lupon'], true)) {
             Auth::logout();
 
             $request
@@ -85,11 +95,12 @@ class AuthController extends Controller
 
             return back()
                 ->withErrors([
-                    'username' =>
-                        'This account is inactive.',
+                    'username' => 'This account or its assigned role is inactive.',
                 ])
                 ->onlyInput('username');
         }
+
+        RateLimiter::clear($throttleKey);
 
         /*
          * Update last login timestamp.
@@ -107,18 +118,14 @@ class AuthController extends Controller
         AuditLogService::log(
             action: 'login',
             module: 'Authentication',
-            description:
-                "User {$user->username} logged in successfully.",
+            description: "User {$user->username} logged in successfully.",
             auditable: $user,
             newValues: [
-                'username' =>
-                    $user->username,
+                'username' => $user->username,
 
-                'role' =>
-                    $user->role?->slug,
+                'role' => $user->role?->slug,
 
-                'last_login_at' =>
-                    $user->last_login_at?->toDateTimeString(),
+                'last_login_at' => $user->last_login_at?->toDateTimeString(),
             ],
             userId: $user->id
         );
@@ -154,15 +161,12 @@ class AuthController extends Controller
             AuditLogService::log(
                 action: 'logout',
                 module: 'Authentication',
-                description:
-                    "User {$user->username} logged out.",
+                description: "User {$user->username} logged out.",
                 auditable: $user,
                 newValues: [
-                    'username' =>
-                        $user->username,
+                    'username' => $user->username,
 
-                    'role' =>
-                        $user->role?->slug,
+                    'role' => $user->role?->slug,
                 ],
                 userId: $user->id
             );
