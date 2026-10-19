@@ -274,6 +274,7 @@ class PanelRecommendationsTest extends TestCase
 
     public function test_mail_failure_is_retriable_without_exposing_provider_details(): void
     {
+        config()->set('queue.default', 'database');
         Queue::fake();
         $this->enableMail();
         $case = $this->case();
