@@ -15,8 +15,16 @@ class CaseNotificationService
         $mailer = config('case_notifications.mailer');
         $transport = config("mail.mailers.{$mailer}.transport");
 
-        return config('case_notifications.enabled') && in_array($transport,
-            ['smtp', 'sendmail', 'ses', 'ses-v2', 'postmark', 'resend', 'mailgun'], true);
+        if (! config('case_notifications.enabled')) {
+            return false;
+        }
+        if ($mailer === 'resend') {
+            return filled(config('services.resend.key'))
+                && filter_var(config('mail.from.address'), FILTER_VALIDATE_EMAIL);
+        }
+
+        return in_array($transport,
+            ['smtp', 'sendmail', 'ses', 'ses-v2', 'postmark', 'mailgun'], true);
     }
 
     public function caseUpdated(BlotterCase $case): void
