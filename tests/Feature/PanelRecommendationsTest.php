@@ -71,6 +71,25 @@ class PanelRecommendationsTest extends TestCase
         $this->assertSame('submitted', $delivery->fresh()->status);
     }
 
+
+    public function test_resend_failure_on_sync_queue_does_not_break_case_update(): void
+    {
+        config()->set('queue.default', 'sync');
+        config()->set('case_notifications.enabled', true);
+        config()->set('case_notifications.mailer', 'resend');
+        config()->set('services.resend.key', 'test-only-resend-key');
+        config()->set('mail.from.address', 'notice@example.test');
+        config()->set('mail.from.name', 'San Jose Blotter System');
+        Http::fake(['api.resend.com/emails' => Http::response(['message' => 'Unauthorized'], 401)]);
+
+        $case = $this->case();
+        $this->contact($case);
+        app(CaseNotificationService::class)->caseUpdated($case);
+
+        $this->assertSame('failed', CaseNotificationDelivery::firstOrFail()->status);
+        Http::assertSentCount(1);
+    }
+
     public function test_resend_requires_an_api_key(): void
     {
         config()->set('case_notifications.enabled', true);
