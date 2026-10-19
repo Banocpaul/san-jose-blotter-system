@@ -9,6 +9,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Http;
 use RuntimeException;
 use Throwable;
 
@@ -50,8 +51,23 @@ class SendCasePartyNotification implements ShouldQueue
             return;
         }
         try {
-            Mail::mailer(config('case_notifications.mailer'))->to($delivery->recipient_email)
-                ->send(new CasePartyUpdate($delivery->message));
+            if (config('case_notifications.mailer') === 'resend') {
+                // Render Free blocks SMTP ports. Resend's HTTPS API works without a worker SDK.
+                $response = Http::withToken(config('services.resend.key'))
+                    ->acceptJson()->timeout(20)
+                    ->post('https://api.resend.com/emails', [
+                        'from' => config('mail.from.name').' <'.config('mail.from.address').'>',
+                        'to' => [$delivery->recipient_email],
+                        'subject' => 'Barangay San Jose: record update',
+                        'text' => $delivery->message,
+                    ]);
+                if (! $response->successful() || ! $response->json('id')) {
+                    throw new RuntimeException('Resend did not accept the email request.');
+                }
+            } else {
+                Mail::mailer(config('case_notifications.mailer'))->to($delivery->recipient_email)
+                    ->send(new CasePartyUpdate($delivery->message));
+            }
         } catch (Throwable) {
             $delivery->update(['status' => 'retrying']);
             throw new RuntimeException('Case notification could not be submitted to the mail service.');
