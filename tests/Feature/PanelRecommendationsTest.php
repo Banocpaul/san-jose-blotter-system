@@ -17,6 +17,7 @@ use App\Services\CaseNotificationService;
 use App\Services\SystemBackupService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use RuntimeException;
 use Tests\TestCase;
@@ -42,6 +43,40 @@ class PanelRecommendationsTest extends TestCase
         }
         $this->type = IncidentType::create(['code' => 'TEST', 'name' => 'Test category', 'is_active' => true]);
         $this->actingAs($this->users['secretary']);
+    }
+
+
+    public function test_resend_api_submits_real_transport_request_without_smtp(): void
+    {
+        Queue::fake();
+        Http::fake(['api.resend.com/emails' => Http::response(['id' => 'email_test_123'], 200)]);
+        config()->set('case_notifications.enabled', true);
+        config()->set('case_notifications.mailer', 'resend');
+        config()->set('services.resend.key', 'test-only-resend-key');
+        config()->set('mail.from.address', 'notice@example.test');
+        config()->set('mail.from.name', 'San Jose Blotter System');
+
+        $case = $this->case();
+        $this->contact($case);
+        app(CaseNotificationService::class)->caseUpdated($case);
+        $delivery = CaseNotificationDelivery::firstOrFail();
+
+        $this->assertSame('queued', $delivery->status);
+        (new SendCasePartyNotification($delivery->id))->handle(app(CaseNotificationService::class));
+
+        Http::assertSent(fn ($request) => $request->url() === 'https://api.resend.com/emails'
+            && $request->hasHeader('Authorization', 'Bearer test-only-resend-key')
+            && $request['to'] === ['party@example.test']
+            && $request['subject'] === 'Barangay San Jose: record update');
+        $this->assertSame('submitted', $delivery->fresh()->status);
+    }
+
+    public function test_resend_requires_an_api_key(): void
+    {
+        config()->set('case_notifications.enabled', true);
+        config()->set('case_notifications.mailer', 'resend');
+        config()->set('services.resend.key', null);
+        $this->assertFalse(app(CaseNotificationService::class)->isConfigured());
     }
 
     public function test_deactivated_accounts_and_roles_cannot_reuse_private_routes(): void
