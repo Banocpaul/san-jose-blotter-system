@@ -68,9 +68,16 @@ class SendCasePartyNotification implements ShouldQueue
                 Mail::mailer(config('case_notifications.mailer'))->to($delivery->recipient_email)
                     ->send(new CasePartyUpdate($delivery->message));
             }
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            // The Render Free demo runs jobs inline (QUEUE_CONNECTION=sync).
+            // Do not turn an email-provider outage into an HTTP 500 on case updates.
+            if (config('queue.default') === 'sync') {
+                $delivery->update(['status' => 'failed']);
+                report($exception);
+                return;
+            }
             $delivery->update(['status' => 'retrying']);
-            throw new RuntimeException('Case notification could not be submitted to the mail service.');
+            throw new RuntimeException('Case notification could not be submitted to the mail service.', previous: $exception);
         }
         $delivery->update(['status' => 'submitted', 'submitted_at' => now()]);
     }
